@@ -18,7 +18,7 @@
   "scripts": {
     "clean": "rm -rf lib",
     "build": "node_modules/babel-cli/bin/babel.js src -d lib",
-    "test": "node_modules/jest/bin/jest.js",
+    "test": "node_modules/jest/bin/jest.js --env node ./src/*/*",
     "prepublish": "npm run clean && npm run build"
   },
   "dependencies": {}

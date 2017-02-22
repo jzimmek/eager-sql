@@ -177,7 +177,7 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
 
     // console.info(">>", selectionName, fieldTypeObj, fieldTypeObj._fields[selectionName])
 
-    let {type: selectionType, isList: selectionIsList, isObject: selectionIsObject, isInterface: selectionIsInterface, isUnion: selectionIsUnion} = typeDetails(fieldTypeObj._fields[selectionName].type),
+    let {type: selectionType, isList: selectionIsList, isObject: selectionIsObject, isInterface: selectionIsInterface, isUnion: selectionIsUnion, isNotNull: selectionIsNotNull} = typeDetails(fieldTypeObj._fields[selectionName].type),
         selectionSqlConfigField = sqlConfigFields[selectionName],
         selectionArgs = astArguments(e, info)
 
@@ -187,6 +187,9 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
 
       let [nextRelation, ...nextRelationParams] = selectionSqlConfigField(selectionArgs, tableAs),
           jsonFn = selectionIsList ? "json_agg" : "to_json"
+
+      if(selectionIsNotNull)
+        emit([`coalesce(`])
 
       emit([`(select ${jsonFn}(x) from (`])
 
@@ -205,6 +208,9 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
       })
 
       emit([`) x)`])
+
+      if(selectionIsNotNull)
+        emit([`, '[]'::json)`])
 
     } else if(selectionIsInterface||selectionIsUnion) {
       let subTypes = selectionSqlConfigField(selectionArgs, tableAs),

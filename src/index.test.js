@@ -381,7 +381,7 @@ test("GraphQLList field", () => {
   })
 })
 
-test("GraphQLInterfaceType field", () => {
+test("GraphQLInterfaceType field with $type column", () => {
   let res = runResolve(`{
     viewer {
       id
@@ -404,7 +404,7 @@ test("GraphQLInterfaceType field", () => {
         (select json_agg(x)
           from (
             (select to_json(x) as x
-              from (select languagea."$type",
+              from (select coalesce(to_json(languagea.*) ->> '$type', 'LanguageA') as "$type",
                     languagea.name as "name",
                     languagea.languageAField as "languageAField"
                   from (select *,
@@ -414,7 +414,7 @@ test("GraphQLInterfaceType field", () => {
                     as languagea) x)
           union all
             (select to_json(x) as x
-              from (select languageb."$type",
+              from (select coalesce(to_json(languageb.*) ->> '$type', 'LanguageB') as "$type",
                     languageb.name as "name",
                     languageb.languageBField as "languageBField"
                   from (select *,
@@ -453,7 +453,7 @@ test("GraphQLUnionType field", () => {
         (select json_agg(x)
           from (
             (select to_json(x) as x
-              from (select languagea."$type",
+              from (select coalesce(to_json(languagea.*) ->> '$type', 'LanguageA') as "$type",
                     languagea.languageAField as "languageAField"
                   from (select *,
                         'LanguageA' as "$type"
@@ -462,7 +462,7 @@ test("GraphQLUnionType field", () => {
                     as languagea) x)
           union all
             (select to_json(x) as x
-              from (select languageb."$type",
+              from (select coalesce(to_json(languageb.*) ->> '$type', 'LanguageB') as "$type",
                     languageb.languageBField as "languageBField"
                   from (select *,
                         'LanguageB' as "$type"

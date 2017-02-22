@@ -166,7 +166,7 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
   emit([`select `])
 
   if(selectTypeColumn){
-    emit([` ${tableAs}."$type"`])
+    emit([`coalesce(to_json(${tableAs}.*) ->> '$type', '${selectTypeColumn}') as "$type" `])
     if(selections.length)
       emit([`, `])
   }
@@ -233,7 +233,7 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
           relationParams: subTypeRelationParams,
           emit,
           path: [...path, selectionAlias?`${selectionAlias}:${selectionName}`:selectionName],
-          selectTypeColumn: true,
+          selectTypeColumn: key,
           filterFragments: [key], // TODO proper fragment handling (TBD coalesce(to_json(*) -> 'someField', null) to handle non-existing columns)
         })
 

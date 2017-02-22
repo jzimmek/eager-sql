@@ -316,6 +316,8 @@ export function parseArgValue({kind,value}){
       return parseFloat(value)
     case "BooleanValue":
       return value === true
+    case "NullValue":
+      return null
     case "StringValue":
       return value
     default:
@@ -332,6 +334,7 @@ function convertArgValue(e, info){
     case "FloatValue":
     case "StringValue":
     case "BooleanValue":
+    case "NullValue":
       return parseArgValue(e)
     default:
       throw new Error(`unsupported argument kind: ${kind}`)

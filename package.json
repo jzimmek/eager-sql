@@ -1,0 +1,25 @@
+{
+  "name": "eager-sql",
+  "version": "0.0.2",
+  "main": "./lib/index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jzimmek/eager-sql.git"
+  },
+  "homepage": "https://github.com/jzimmek/eager-sql#readme",
+  "devDependencies": {
+    "babel-cli": "^6.23.0",
+    "babel-plugin-transform-object-rest-spread": "^6.23.0",
+    "babel-preset-es2015": "^6.22.0",
+    "graphql": "^0.9.1",
+    "graphql-tools": "^0.10.0",
+    "jest": "^19.0.1"
+  },
+  "scripts": {
+    "clean": "rm -rf lib",
+    "build": "node_modules/babel-cli/bin/babel.js src -d lib",
+    "test": "node_modules/jest/bin/jest.js",
+    "prepublish": "npm run clean && npm run build"
+  },
+  "dependencies": {}
+}

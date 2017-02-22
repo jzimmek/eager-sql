@@ -141,11 +141,13 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
 
   let {type: fieldType} = typeDetails(fieldTypeObj),
       args = astArguments(queryAst, info),
-      tableLookup = fieldType.sql,
-      tableFields = (tableLookup && tableLookup.fields) || {}
+      sqlConfig = fieldType.sql || fieldType._typeConfig.sql, // TODO: seem like a change graphql 0.8.x and 0.9.x
+      sqlConfigFields = (sqlConfig && sqlConfig.fields) || {}
 
-  if(!tableLookup)
-    throw new Error(`no tableFn found for type: ${fieldType.name}; ${path.join(".")}`)
+  // console.info(Object.keys(fieldTypeObj),Object.keys(fieldType),Object.keys(fieldTypeObj._typeConfig))
+
+  if(!sqlConfig)
+    throw new Error(`no sql config found for type: ${fieldType.name}; ${path.join(".")}`)
 
   let defaultFields = Object
     .keys(fieldType._fields)
@@ -153,9 +155,8 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
 
   let availableFields = {
     ...defaultFields,
-    ...tableFields,
+    ...sqlConfigFields,
   }
-
 
   let tableAs = fieldType.name.toLowerCase(),
       selectionsAll = gatherFieldSelections(queryAst, info, filterFragments).filter(e => !e.name.value.match(/^__/)),
@@ -177,14 +178,14 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
     // console.info(">>", selectionName, fieldTypeObj, fieldTypeObj._fields[selectionName])
 
     let {type: selectionType, isList: selectionIsList, isObject: selectionIsObject, isInterface: selectionIsInterface, isUnion: selectionIsUnion} = typeDetails(fieldTypeObj._fields[selectionName].type),
-        fieldLookup = (tableLookup.fields||{})[selectionName],
+        selectionSqlConfigField = sqlConfigFields[selectionName],
         selectionArgs = astArguments(e, info)
 
     if(selectionIsObject){
-      if(!fieldLookup)
-        throw new Error(`GraphQLObjectType and GraphQLList expects fieldLookup: ${selectionName}`)
+      if(!selectionSqlConfigField)
+        throw new Error(`GraphQLObjectType and GraphQLList expects entry in sql config for field: ${selectionName}`)
 
-      let [nextRelation, ...nextRelationParams] = fieldLookup(selectionArgs, tableAs),
+      let [nextRelation, ...nextRelationParams] = selectionSqlConfigField(selectionArgs, tableAs),
           jsonFn = selectionIsList ? "json_agg" : "to_json"
 
       emit([`(select ${jsonFn}(x) from (`])
@@ -204,8 +205,9 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
       })
 
       emit([`) x)`])
+
     } else if(selectionIsInterface||selectionIsUnion) {
-      let subTypes = fieldLookup(selectionArgs, tableAs),
+      let subTypes = selectionSqlConfigField(selectionArgs, tableAs),
           jsonFn = selectionIsList ? "json_agg" : "to_json"
 
       emit([`(select ${jsonFn}(x) from (`])
@@ -237,7 +239,7 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
       emit([`) x)`])
 
     } else {
-      emit(typeof(fieldLookup)==="function" ? fieldLookup(selectionArgs, tableAs) : [`${tableAs}.${selectionName}`])
+      emit(typeof(selectionSqlConfigField)==="function" ? selectionSqlConfigField(selectionArgs, tableAs) : [`${tableAs}.${selectionName}`])
     }
 
     emit([` as "${selectionAlias||selectionName}"`])
@@ -248,7 +250,7 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
 
   selectionsExcluded.forEach((e, idx, arr) => {
     let selectionName = e.name.value,
-        depsFn = (tableLookup.deps||{})[selectionName],
+        depsFn = (sqlConfig.deps||{})[selectionName],
         selectionArgs = astArguments(e, info),
         deps = depsFn ? depsFn(selectionArgs, tableAs) : {},
         depKeys = Object.keys(deps)

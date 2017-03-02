@@ -15,8 +15,15 @@ let resolvers = {
     }
   },
   Viewer: {
+    niceName: (obj) => `*** ${obj.name} ***`,
+    niceName2: (obj) => `*** ${obj.name} ***`,
     __sql: {
+      deps: {
+        niceName: (args, table) => ({name: [`${table}.name`]}),
+        niceName2: (args, table) => ({name: [`${table}.name`]}),
+      },
       fields: {
+        niceName: false,
         columnAlias: "column",
         camelCase: (args, table) => [`${table}.camel_case`],
         profile: (args, table) => [`select * from profile where viewer_id = ${table}.id`],
@@ -67,6 +74,8 @@ let schema = makeExecutableSchema({
       id: ID
       columnAlias: String
       name: String
+      niceName: String
+      niceName2: String
       camelCase: String
       profile: Profile
       awards: [Award]
@@ -494,6 +503,40 @@ test("GraphQLUnionType field", () => {
           where id = ?)
         /*viewer*/
         as viewer
+    `)
+  })
+})
+
+test("non sql-field with deps", () => {
+  let res = runResolve(`{
+    viewer {
+      niceName
+    }
+  }`)
+
+  expect(res).toEqual({
+    params: [undefined],
+    sql: format(`
+      select
+        viewer.name as "name"
+      from (select * from organisations where id = ?) /*viewer*/ as viewer
+    `)
+  })
+})
+
+test("non sql-field with deps, implicit sql config field exclude", () => {
+  let res = runResolve(`{
+    viewer {
+      niceName2
+    }
+  }`)
+
+  expect(res).toEqual({
+    params: [undefined],
+    sql: format(`
+      select
+        viewer.name as "name"
+      from (select * from organisations where id = ?) /*viewer*/ as viewer
     `)
   })
 })

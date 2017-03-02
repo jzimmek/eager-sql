@@ -142,23 +142,20 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
   let {type: fieldType} = typeDetails(fieldTypeObj),
       args = astArguments(queryAst, info),
       sqlConfig = fieldType.sql || fieldType._typeConfig.sql, // TODO: seem like a change graphql 0.8.x and 0.9.x
-      sqlConfigFields = (sqlConfig && sqlConfig.fields) || {}
+      sqlConfigFields = (sqlConfig && sqlConfig.fields) || {},
+      sqlConfigDeps = (sqlConfig && sqlConfig.deps) || {}
 
   // console.info(Object.keys(fieldTypeObj),Object.keys(fieldType),Object.keys(fieldTypeObj._typeConfig))
 
   if(!sqlConfig)
     throw new Error(`no sql config found for type: ${fieldType.name}; ${path.join(".")}`)
 
-  let defaultFields = Object
-    .keys(fieldType._fields)
-    .reduce((memo,e) => ({...memo, [e]: true}), {})
-
   let availableFields = {
-    ...defaultFields,
-    ...sqlConfigFields,
-  }
-
-  let tableAs = fieldType.name.toLowerCase(),
+        ...Object.keys(fieldType._fields).reduce((memo,e) => ({...memo, [e]: true}), {}),
+        ...sqlConfigFields,
+        ...Object.keys(sqlConfigDeps).reduce((memo,key) => ({[key]: false}), {}),
+      },
+      tableAs = fieldType.name.toLowerCase(),
       selectionsAll = gatherFieldSelections(queryAst, info, filterFragments).filter(e => !e.name.value.match(/^__/)),
       selectionsExcluded = selectionsAll.filter(e => !availableFields[e.name.value]),
       selections = selectionsAll.filter(e => availableFields[e.name.value])
@@ -263,7 +260,7 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
 
   selectionsExcluded.forEach((e, idx, arr) => {
     let selectionName = e.name.value,
-        depsFn = (sqlConfig.deps||{})[selectionName],
+        depsFn = sqlConfigDeps[selectionName],
         selectionArgs = astArguments(e, info),
         deps = depsFn ? depsFn(selectionArgs, tableAs) : {},
         depKeys = Object.keys(deps)

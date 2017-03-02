@@ -17,6 +17,7 @@ let resolvers = {
   Viewer: {
     __sql: {
       fields: {
+        columnAlias: "column",
         camelCase: (args, table) => [`${table}.camel_case`],
         profile: (args, table) => [`select * from profile where viewer_id = ${table}.id`],
         awards: (args, table) => [`select * from awards where viewer_id = ${table}.id`],
@@ -64,6 +65,7 @@ let schema = makeExecutableSchema({
     }
     type Viewer {
       id: ID
+      columnAlias: String
       name: String
       camelCase: String
       profile: Profile
@@ -165,6 +167,24 @@ test("field without argument", () => {
     `)
   })
 })
+
+test("field with aliased column", () => {
+  let res = runResolve(`{
+    viewer {
+      columnAlias
+    }
+  }`)
+
+  expect(res).toEqual({
+    params: [undefined],
+    sql: format(`
+      select
+        viewer.column as "columnAlias"
+      from (select * from organisations where id = ?) /*viewer*/ as viewer
+    `)
+  })
+})
+
 
 test("field with argument, static values", () => {
   let res = runResolve(`{

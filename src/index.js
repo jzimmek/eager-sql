@@ -245,7 +245,14 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
       emit([`) x)`])
 
     } else {
-      emit(typeof(selectionSqlConfigField)==="function" ? selectionSqlConfigField(selectionArgs, tableAs) : [`${tableAs}.${selectionName}`])
+      if(typeof(selectionSqlConfigField)==="function"){
+        emit(selectionSqlConfigField(selectionArgs, tableAs))
+      }else if(typeof(selectionSqlConfigField) === "string"){
+        emit([`${tableAs}.${selectionSqlConfigField}`])
+      }else{
+        emit([`${tableAs}.${selectionName}`])
+      }
+      // emit(typeof(selectionSqlConfigField)==="function" ? selectionSqlConfigField(selectionArgs, tableAs) : [`${tableAs}.${selectionName}`])
     }
 
     emit([` as "${selectionAlias||selectionName}"`])

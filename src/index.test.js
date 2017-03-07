@@ -24,8 +24,8 @@ let resolvers = {
     niceName2: (obj) => `*** ${obj.name} ***`,
     __sql: {
       deps: {
-        niceName: (args, table) => ({name: [`${table}.name`]}),
-        niceName2: (args, table) => ({name: [`${table}.name`]}),
+        niceName: ["name"],
+        niceName2: ["name"],
       },
       fields: {
         niceName: false,

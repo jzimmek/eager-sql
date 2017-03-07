@@ -22,7 +22,8 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
       tableAs = fieldType.name.toLowerCase(),
       selectionsAll = gatherFieldSelections(queryAst, info, filterFragments).filter(e => !e.name.value.match(/^__/)),
       selectionsExcluded = selectionsAll.filter(e => !availableFields[e.name.value]),
-      selections = selectionsAll.filter(e => availableFields[e.name.value])
+      selections = selectionsAll.filter(e => availableFields[e.name.value]),
+      selectedColumns = []
 
   emit([`select `])
 
@@ -117,53 +118,29 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
     }
 
     emit([` as "${selectionAlias||selectionName}"`])
+    selectedColumns = [...selectedColumns, selectionAlias||selectionName]
 
     if(idx < arr.length - 1)
       emit([`, `])
   })
 
-  selectionsExcluded.forEach((e, idx, arr) => {
-    let selectionName = e.name.value,
-        depsFn = sqlConfigDeps[selectionName],
-        selectionArgs = astArguments(e, info),
-        deps = depsFn ? depsFn(selectionArgs, tableAs) : {},
-        depKeys = Object.keys(deps)
+  selectionsExcluded.forEach((e,idx) => {
+    let deps = (sqlConfigDeps[e.name.value] || [])
+      .filter(e => !selectedColumns.includes(e))
 
-    // prevent duplicate columns
-    deps = depKeys.reduce((memo, depKey) => {
-      // dependency already exist in selection of query
-      if(selections.find(e => e.name.value === depKey))
-        return memo
-
-      // add dependency
-      return {
-        ...memo,
-        [depKey]: deps[depKey]
-      }
-    }, {})
-
-    depKeys = Object.keys(deps)
-
-    if(depKeys.length){
+    if(deps.length){
+      selectedColumns = [...selectedColumns, ...deps]
 
       // does any sql-based selection exist?
-      if(selections.length)
+      if((idx === 0 && selections.length) || idx > 0)
         emit([`, `])
 
-      depKeys.forEach((depKey, depIdx, depArr) => {
-        let [depExpr,...depParams] = deps[depKey]
-
-        emit([`${depExpr} as "${depKey}"`, ...depParams])
-
-        if(depIdx < depArr.length - 1)
+      deps.forEach((dep, depIdx) => {
+        emit([`${tableAs}.${dep} as "${dep}"`])
+        if(depIdx < deps.length - 1)
           emit([`, `])
       })
-
-      if(idx < arr.length - 1)
-        emit([`, `])
     }
-
-
   })
 
   emit([` from (${relation}) /*${path.join(".")}*/ as ${tableAs}`, ...relationParams])

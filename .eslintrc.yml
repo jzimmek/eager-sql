@@ -1,0 +1,23 @@
+env:
+  browser: true
+  es6: true
+extends: 'eslint:recommended'
+parserOptions:
+  ecmaVersion: 8
+  ecmaFeatures:
+    experimentalObjectRestSpread: true
+  sourceType: module
+rules:
+  strict: 0
+  linebreak-style:
+    - error
+    - unix
+  semi:
+    - error
+    - never
+  no-console:
+    - 0
+  no-unused-vars: [2, {"argsIgnorePattern": "^_"}]
+globals:
+  console: true
+  __dirname: true

@@ -1,7 +1,12 @@
+/*global test expect*/
+
 import {parse,Source} from 'graphql'
 
 import {makeExecutableSchema,addResolveFunctionsToSchema} from 'graphql-tools'
-import {simpleResolveSQLParts,parseArgValue} from "./index"
+
+import simpleResolveSQLParts from "./simpleResolveSQLParts"
+import parseArgValue from "./parseArgValue"
+
 //
 // let createResolveOne = null
 
@@ -28,11 +33,11 @@ let resolvers = {
         camelCase: (args, table) => [`${table}.camel_case`],
         profile: (args, table) => [`select * from profile where viewer_id = ${table}.id`],
         awards: (args, table) => [`select * from awards where viewer_id = ${table}.id`],
-        languages: (args, table) => ({
+        languages: (_args, _table) => ({
           LanguageA: [`select *, 'LanguageA' as "$type" from languages`],
           LanguageB: [`select *, 'LanguageB' as "$type" from languages`],
         }),
-        languagesUnion: (args, table) => ({
+        languagesUnion: (_args, _table) => ({
           LanguageA: [`select *, 'LanguageA' as "$type" from languages`],
           LanguageB: [`select *, 'LanguageB' as "$type" from languages`],
         }),

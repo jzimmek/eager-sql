@@ -47,14 +47,12 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
       if(!selectionSqlConfigField)
         throw new Error(`GraphQLObjectType and GraphQLList expects entry in sql config for field: ${selectionName}`)
 
-      let [nextRelation, ...nextRelationParams] = selectionSqlConfigField(selectionArgs, tableAs),
-          jsonFn = selectionIsList ? "json_agg" : "to_json"
+      let [nextRelation, ...nextRelationParams] = selectionSqlConfigField(selectionArgs, tableAs)
 
       if(selectionIsNotNull)
         emit([`coalesce(`])
 
-      emit([`(select ${jsonFn}(x) from (`])
-
+      emit([`(select ${selectionIsList ? "json_agg" : "to_json"}(x) from (`])
 
       traverse({
         schema,
@@ -75,16 +73,14 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
         emit([`, '[]'::json)`])
 
     } else if(selectionIsInterface||selectionIsUnion) {
-      let subTypes = selectionSqlConfigField(selectionArgs, tableAs),
-          jsonFn = selectionIsList ? "json_agg" : "to_json"
+      let subTypes = selectionSqlConfigField(selectionArgs, tableAs)
 
-      emit([`(select ${jsonFn}(x) from (`])
+      emit([`(select ${selectionIsList ? "json_agg" : "to_json"}(x) from (`])
       Object.keys(subTypes).forEach((key, idx, arr) => {
-        let [subTypeRelation, ...subTypeRelationParams] = subTypes[key]
+        let [subTypeRelation, ...subTypeRelationParams] = subTypes[key],
+            obj = schema.getTypeMap()[key]
 
         emit([`(select to_json(x) as x from (`])
-
-        let obj = schema.getTypeMap()[key]
 
         traverse({
           schema,
@@ -114,7 +110,6 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
       }else{
         emit([`${tableAs}.${selectionName}`])
       }
-      // emit(typeof(selectionSqlConfigField)==="function" ? selectionSqlConfigField(selectionArgs, tableAs) : [`${tableAs}.${selectionName}`])
     }
 
     emit([` as "${selectionAlias||selectionName}"`])

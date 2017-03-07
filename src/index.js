@@ -64,7 +64,7 @@ export function simpleResolveSQLParts([relation,...relationParams], schema, info
   })
 
   let sql = parts.map(([sql]) => sql).join(""),
-      params = parts.reduce((memo, [sql,...params]) => [...memo, ...params], [])
+      params = parts.reduce((memo, [_sql,...params]) => [...memo, ...params], [])
 
   return {sql,params}
 }
@@ -140,7 +140,6 @@ function gatherFieldSelections(ast, info, filterFragments){
 function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParams, emit, path, selectTypeColumn, filterFragments}){
 
   let {type: fieldType} = typeDetails(fieldTypeObj),
-      args = astArguments(queryAst, info),
       sqlConfig = fieldType.sql || fieldType._typeConfig.sql, // TODO: seem like a change graphql 0.8.x and 0.9.x
       sqlConfigFields = (sqlConfig && sqlConfig.fields) || {},
       sqlConfigDeps = (sqlConfig && sqlConfig.deps) || {}
@@ -215,7 +214,7 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
 
       emit([`(select ${jsonFn}(x) from (`])
       Object.keys(subTypes).forEach((key, idx, arr) => {
-        let [subTypeRelation, ...subTypeRelationParams] = subTypes[key]
+        let [subTypeRelation, ...subTypeRelationParams] = subTypes[key]
 
         emit([`(select to_json(x) as x from (`])
 

@@ -7,14 +7,8 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
   let {type: fieldType} = typeDetails(fieldTypeObj),
       sqlConfig = fieldType.sql || fieldType._typeConfig.sql, // TODO: seem like a change graphql 0.8.x and 0.9.x
       sqlConfigFields = (sqlConfig && sqlConfig.fields) || {},
-      sqlConfigDeps = (sqlConfig && sqlConfig.deps) || {}
-
-  // console.info(Object.keys(fieldTypeObj),Object.keys(fieldType),Object.keys(fieldTypeObj._typeConfig))
-
-  if(!sqlConfig)
-    throw new Error(`no sql config found for type: ${fieldType.name}; ${path.join(".")}`)
-
-  let availableFields = {
+      sqlConfigDeps = (sqlConfig && sqlConfig.deps) || {},
+      availableFields = {
         ...Object.keys(fieldType._fields).reduce((memo,e) => ({...memo, [e]: true}), {}),
         ...sqlConfigFields,
         ...Object.keys(sqlConfigDeps).reduce((memo,key) => ({[key]: false}), {}),
@@ -24,6 +18,9 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
       selectionsExcluded = selectionsAll.filter(e => !availableFields[e.name.value]),
       selections = selectionsAll.filter(e => availableFields[e.name.value]),
       selectedColumns = []
+
+  if(!sqlConfig)
+    throw new Error(`no sql config found for type: ${fieldType.name}; ${path.join(".")}`)
 
   emit([`select `])
 
@@ -35,11 +32,8 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
 
   selections.forEach((e, idx, arr) => {
     let selectionAlias = e.alias && e.alias.value,
-        selectionName = e.name.value
-
-    // console.info(">>", selectionName, fieldTypeObj, fieldTypeObj._fields[selectionName])
-
-    let {type: selectionType, isList: selectionIsList, isObject: selectionIsObject, isInterface: selectionIsInterface, isUnion: selectionIsUnion, isNotNull: selectionIsNotNull} = typeDetails(fieldTypeObj._fields[selectionName].type),
+        selectionName = e.name.value,
+        {type: selectionType, isList: selectionIsList, isObject: selectionIsObject, isInterface: selectionIsInterface, isUnion: selectionIsUnion, isNotNull: selectionIsNotNull} = typeDetails(fieldTypeObj._fields[selectionName].type),
         selectionSqlConfigField = sqlConfigFields[selectionName],
         selectionArgs = astArguments(e, info)
 

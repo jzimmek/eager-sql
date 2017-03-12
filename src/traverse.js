@@ -226,6 +226,13 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
     if(skip)
       return
 
+    let include = e.directives
+      .filter(d => d.name.value === "include")
+      .reduce((memo,directive) => memo && astArguments(directive, info)[directive.arguments[0].name.value], true)
+
+    if(!include)
+      return
+
     if(getSelectedColumns().length)
       emit([`, `])
 

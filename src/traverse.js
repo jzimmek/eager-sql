@@ -2,6 +2,166 @@ import astArguments from "./astArguments"
 import typeDetails from "./typeDetails"
 import gatherFieldSelections from "./gatherFieldSelections"
 
+function emitScalarType({
+  _queryAst,
+  selectionSqlConfigField,
+  selectionArgs,
+  tableAs,
+  _selectionIsList,
+  _selectionIsNotNull,
+  _selectionType,
+  _selectionAlias,
+  selectionName,
+  _columnAlias,
+  emit,
+  _path,
+  _schema,
+  _info,
+  _addLateralJoin,
+}){
+  if(typeof(selectionSqlConfigField)==="function"){
+    emit(selectionSqlConfigField(selectionArgs, tableAs))
+  }else if(typeof(selectionSqlConfigField) === "string"){
+    emit([`${tableAs}.${selectionSqlConfigField}`])
+  }else{
+    emit([`${tableAs}.${selectionName}`])
+  }
+}
+
+function emitInterfaceUnionType({
+  queryAst,
+  selectionSqlConfigField,
+  selectionArgs,
+  tableAs,
+  selectionIsList,
+  _selectionIsNotNull,
+  _selectionType,
+  selectionAlias,
+  selectionName,
+  columnAlias,
+  emit,
+  path,
+  schema,
+  info,
+  addLateralJoin,
+}){
+  if(selectionIsList)   emit([`${columnAlias}.json_agg `])
+  else                  emit([`${columnAlias}.to_json `])
+
+  addLateralJoin({
+    joinAs: `${columnAlias}`,
+    fn: () => {
+      if(selectionIsList)   emit([`(select json_agg(x) from (`])
+      else                  emit([`(select to_json(x) from (`])
+
+      let subTypes = selectionSqlConfigField(selectionArgs, tableAs)
+
+      Object.keys(subTypes).forEach((key, idx, arr) => {
+        let [subTypeRelation, ...subTypeRelationParams] = subTypes[key],
+            obj = schema.getTypeMap()[key]
+
+        emit([`(select to_json(x) as x from (`])
+
+        traverse({
+          schema,
+          queryAst,
+          info,
+          fieldTypeObj: typeDetails(obj).type,
+          relation: subTypeRelation,
+          relationParams: subTypeRelationParams,
+          emit,
+          path: [...path, selectionAlias?`${selectionAlias}:${selectionName}`:selectionName],
+          selectTypeColumn: key,
+          filterFragments: [key], // TODO proper fragment handling (TBD coalesce(to_json(*) -> 'someField', null) to handle non-existing columns)
+        })
+
+        emit([`) x)`])
+
+        if(idx < arr.length - 1)
+          emit([` union all `])
+      })
+
+      emit([`) x)`])
+    }
+  })
+}
+
+function emitObjectType({
+  queryAst,
+  selectionSqlConfigField,
+  selectionArgs,
+  tableAs,
+  selectionIsList,
+  selectionIsNotNull,
+  selectionType,
+  selectionAlias,
+  selectionName,
+  columnAlias,
+  emit,
+  path,
+  schema,
+  info,
+  addLateralJoin,
+}){
+  if(!selectionSqlConfigField)
+    throw new Error(`GraphQLObjectType and GraphQLList expects entry in sql config for field: ${selectionName}`)
+
+  let [nextRelation, ...nextRelationParams] = selectionSqlConfigField(selectionArgs, tableAs)
+
+  if(selectionIsList)   emit([`${columnAlias}.json_agg `])
+  else                  emit([`${columnAlias}.to_json `])
+
+  addLateralJoin({
+    joinAs: `${columnAlias}`,
+    fn: () => {
+
+      if(selectionIsList){
+        if(selectionIsNotNull)  emit([`(select coalesce(json_agg(x),'[]'::json) as json_agg from (`])
+        else                    emit([`(select json_agg(x) from (`])
+      }else{
+        emit([`(select to_json(x) from (`])
+      }
+
+      traverse({
+        schema,
+        queryAst,
+        info,
+        fieldTypeObj: selectionType,
+        relation: nextRelation,
+        relationParams: nextRelationParams,
+        emit,
+        path: [...path, selectionAlias?`${selectionAlias}:${selectionName}`:selectionName],
+        selectTypeColumn: false,
+        filterFragments: [],
+      })
+
+      emit([`) x)`])
+    }
+  })
+}
+
+
+function emitExcluded({selectionsExcluded,sqlConfigDeps,getSelectedColumns,selections,tableAs,emit,addSelectedColumns}){
+  selectionsExcluded.forEach((e,idx) => {
+    let selectedColumns = getSelectedColumns(),
+        deps = (sqlConfigDeps[e.name.value] || []).filter(e => !selectedColumns.includes(e))
+
+    if(deps.length){
+      addSelectedColumns(deps)
+
+      // does any sql-based selection exist?
+      if((idx === 0 && selections.length) || idx > 0)
+        emit([`, `])
+
+      deps.forEach((dep, depIdx) => {
+        emit([`${tableAs}.${dep} as "${dep}"`])
+        if(depIdx < deps.length - 1)
+          emit([`, `])
+      })
+    }
+  })
+}
+
 function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParams, emit, path, selectTypeColumn, filterFragments}){
 
   let {type: fieldType} = typeDetails(fieldTypeObj),
@@ -17,7 +177,11 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
       selectionsAll = gatherFieldSelections(queryAst, info, filterFragments).filter(e => !e.name.value.match(/^__/)),
       selectionsExcluded = selectionsAll.filter(e => !availableFields[e.name.value]),
       selections = selectionsAll.filter(e => availableFields[e.name.value]),
-      selectedColumns = []
+      selectedColumns = [],
+      getSelectedColumns = () => selectedColumns,
+      addSelectedColumns = (columns) => selectedColumns = [...selectedColumns, ...columns],
+      lateralJoins = [],
+      addLateralJoin = (join) => lateralJoins = [...lateralJoins, join]
 
   if(!sqlConfig)
     throw new Error(`no sql config found for type: ${fieldType.name}; ${path.join(".")}`)
@@ -35,104 +199,50 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
         selectionName = e.name.value,
         {type: selectionType, isList: selectionIsList, isObject: selectionIsObject, isInterface: selectionIsInterface, isUnion: selectionIsUnion, isNotNull: selectionIsNotNull} = typeDetails(fieldTypeObj._fields[selectionName].type),
         selectionSqlConfigField = sqlConfigFields[selectionName],
-        selectionArgs = astArguments(e, info)
+        selectionArgs = astArguments(e, info),
+        columnAlias = `${selectionAlias||selectionName}`,
+        traverseArgs = {
+          queryAst: e,
+          selectionSqlConfigField,
+          selectionArgs,
+          selectionIsList,
+          selectionIsNotNull,
+          selectionType,
+          selectionAlias,
+          selectionName,
+          tableAs,
+          columnAlias,
+          emit,
+          path,
+          schema,
+          info,
+          addLateralJoin,
+        }
 
     if(selectionIsObject){
-      if(!selectionSqlConfigField)
-        throw new Error(`GraphQLObjectType and GraphQLList expects entry in sql config for field: ${selectionName}`)
-
-      let [nextRelation, ...nextRelationParams] = selectionSqlConfigField(selectionArgs, tableAs)
-
-      if(selectionIsNotNull)
-        emit([`coalesce(`])
-
-      emit([`(select ${selectionIsList ? "json_agg" : "to_json"}(x) from (`])
-
-      traverse({
-        schema,
-        queryAst: e,
-        info,
-        fieldTypeObj: selectionType,
-        relation: nextRelation,
-        relationParams: nextRelationParams,
-        emit,
-        path: [...path, selectionAlias?`${selectionAlias}:${selectionName}`:selectionName],
-        selectTypeColumn: false,
-        filterFragments: [],
-      })
-
-      emit([`) x)`])
-
-      if(selectionIsNotNull)
-        emit([`, '[]'::json)`])
-
+      emitObjectType(traverseArgs)
     } else if(selectionIsInterface||selectionIsUnion) {
-      let subTypes = selectionSqlConfigField(selectionArgs, tableAs)
-
-      emit([`(select ${selectionIsList ? "json_agg" : "to_json"}(x) from (`])
-      Object.keys(subTypes).forEach((key, idx, arr) => {
-        let [subTypeRelation, ...subTypeRelationParams] = subTypes[key],
-            obj = schema.getTypeMap()[key]
-
-        emit([`(select to_json(x) as x from (`])
-
-        traverse({
-          schema,
-          queryAst: e,
-          info,
-          fieldTypeObj: typeDetails(obj).type,
-          relation: subTypeRelation,
-          relationParams: subTypeRelationParams,
-          emit,
-          path: [...path, selectionAlias?`${selectionAlias}:${selectionName}`:selectionName],
-          selectTypeColumn: key,
-          filterFragments: [key], // TODO proper fragment handling (TBD coalesce(to_json(*) -> 'someField', null) to handle non-existing columns)
-        })
-
-        emit([`) x)`])
-
-        if(idx < arr.length - 1)
-          emit([` union all `])
-      })
-      emit([`) x)`])
-
+      emitInterfaceUnionType(traverseArgs)
     } else {
-      if(typeof(selectionSqlConfigField)==="function"){
-        emit(selectionSqlConfigField(selectionArgs, tableAs))
-      }else if(typeof(selectionSqlConfigField) === "string"){
-        emit([`${tableAs}.${selectionSqlConfigField}`])
-      }else{
-        emit([`${tableAs}.${selectionName}`])
-      }
+      emitScalarType(traverseArgs)
     }
 
-    emit([` as "${selectionAlias||selectionName}"`])
-    selectedColumns = [...selectedColumns, selectionAlias||selectionName]
+    emit([` as "${columnAlias}"`])
+    addSelectedColumns([columnAlias])
 
     if(idx < arr.length - 1)
       emit([`, `])
   })
 
-  selectionsExcluded.forEach((e,idx) => {
-    let deps = (sqlConfigDeps[e.name.value] || [])
-      .filter(e => !selectedColumns.includes(e))
-
-    if(deps.length){
-      selectedColumns = [...selectedColumns, ...deps]
-
-      // does any sql-based selection exist?
-      if((idx === 0 && selections.length) || idx > 0)
-        emit([`, `])
-
-      deps.forEach((dep, depIdx) => {
-        emit([`${tableAs}.${dep} as "${dep}"`])
-        if(depIdx < deps.length - 1)
-          emit([`, `])
-      })
-    }
-  })
+  emitExcluded({selectionsExcluded,sqlConfigDeps,getSelectedColumns,selections,tableAs,emit,addSelectedColumns})
 
   emit([` from (${relation}) /*${path.join(".")}*/ as ${tableAs}`, ...relationParams])
+
+  lateralJoins.forEach(({joinAs,fn}) => {
+    emit([` left join lateral (`])
+    fn()
+    emit([`) as ${joinAs} on true`])
+  })
 }
 
 export default traverse

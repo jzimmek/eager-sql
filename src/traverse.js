@@ -141,7 +141,7 @@ function emitObjectType({
 }
 
 
-function emitExcluded({selectionsExcluded,sqlConfigDeps,getSelectedColumns,selections,tableAs,emit,addSelectedColumns}){
+function emitExcluded({selectionsExcluded,sqlConfigDeps,getSelectedColumns,tableAs,emit,addSelectedColumns}){
   selectionsExcluded.forEach((e,idx) => {
     let selectedColumns = getSelectedColumns(),
         deps = (sqlConfigDeps[e.name.value] || []).filter(e => !selectedColumns.includes(e))
@@ -150,7 +150,7 @@ function emitExcluded({selectionsExcluded,sqlConfigDeps,getSelectedColumns,selec
       addSelectedColumns(deps)
 
       // does any sql-based selection exist?
-      if((idx === 0 && selections.length) || idx > 0)
+      if((idx === 0 && selectedColumns.length) || idx > 0)
         emit([`, `])
 
       deps.forEach((dep, depIdx) => {
@@ -194,7 +194,7 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
       emit([`, `])
   }
 
-  selections.forEach((e, idx, arr) => {
+  selections.forEach((e) => {
     let selectionAlias = e.alias && e.alias.value,
         selectionName = e.name.value,
         {type: selectionType, isList: selectionIsList, isObject: selectionIsObject, isInterface: selectionIsInterface, isUnion: selectionIsUnion, isNotNull: selectionIsNotNull} = typeDetails(fieldTypeObj._fields[selectionName].type),
@@ -219,6 +219,16 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
           addLateralJoin,
         }
 
+    let skip = e.directives
+      .filter(d => d.name.value === "skip")
+      .reduce((memo,directive) => memo || astArguments(directive, info)[directive.arguments[0].name.value], false)
+
+    if(skip)
+      return
+
+    if(getSelectedColumns().length)
+      emit([`, `])
+
     if(selectionIsObject){
       emitObjectType(traverseArgs)
     } else if(selectionIsInterface||selectionIsUnion) {
@@ -228,13 +238,11 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
     }
 
     emit([` as "${columnAlias}"`])
-    addSelectedColumns([columnAlias])
 
-    if(idx < arr.length - 1)
-      emit([`, `])
+    addSelectedColumns([columnAlias])
   })
 
-  emitExcluded({selectionsExcluded,sqlConfigDeps,getSelectedColumns,selections,tableAs,emit,addSelectedColumns})
+  emitExcluded({selectionsExcluded,sqlConfigDeps,getSelectedColumns,tableAs,emit,addSelectedColumns})
 
   emit([` from (${relation}) /*${path.join(".")}*/ as ${tableAs}`, ...relationParams])
 

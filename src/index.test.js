@@ -337,19 +337,20 @@ test("nested field", () => {
   expect(res).toEqual({
     params: [undefined],
     sql: format(`
-      select
+      select profile.to_json as "profile"
+      from ( select *
+          from organisations
+          where id = ? )
+        /*viewer*/
+        as viewer
+      left join lateral (
         ( select to_json ( x )
           from ( select profile.url as "url"
               from ( select *
                   from profile
                   where viewer_id = viewer.id )
                 /*viewer.profile*/
-                as profile ) x ) as "profile"
-      from ( select *
-          from organisations
-          where id = ? )
-        /*viewer*/
-        as viewer
+                as profile ) x ) ) as profile on true
     `)
   })
 })
@@ -367,20 +368,21 @@ test("scalar field and nested field", () => {
   expect(res).toEqual({
     params: [undefined],
     sql: format(`
-      select
-        viewer.id as "id",
+      select viewer.id as "id" ,
+        profile.to_json as "profile"
+      from ( select *
+          from organisations
+          where id = ? )
+        /*viewer*/
+        as viewer
+      left join lateral (
         ( select to_json ( x )
           from ( select profile.url as "url"
               from ( select *
                   from profile
                   where viewer_id = viewer.id )
                 /*viewer.profile*/
-                as profile ) x ) as "profile"
-      from ( select *
-          from organisations
-          where id = ? )
-        /*viewer*/
-        as viewer
+                as profile ) x ) ) as profile on true
     `)
   })
 })
@@ -399,18 +401,21 @@ test("GraphQLList field", () => {
   expect(res).toEqual({
     params: [undefined],
     sql: format(`
-      select viewer.id as "id",
-        (select json_agg(x)
-          from (select award.name as "name"
-              from (select *
-                  from awards where viewer_id = viewer.id)
-                /*viewer.awards*/
-                as award) x) as "awards"
-      from (select *
+      select viewer.id as "id" ,
+        awards.json_agg as "awards"
+      from ( select *
           from organisations
-          where id = ?)
+          where id = ? )
         /*viewer*/
         as viewer
+      left join lateral (
+        ( select json_agg ( x )
+          from ( select award.name as "name"
+              from ( select *
+                  from awards
+                  where viewer_id = viewer.id )
+                /*viewer.awards*/
+                as award ) x ) ) as awards on true
     `)
   })
 })
@@ -434,33 +439,35 @@ test("GraphQLInterfaceType field with $type column", () => {
   expect(res).toEqual({
     params: [undefined],
     sql: format(`
-      select viewer.id as "id",
-        (select json_agg(x)
-          from (
-            (select to_json(x) as x
-              from (select coalesce(to_json(languagea.*) ->> '$type', 'LanguageA') as "$type",
-                    languagea.name as "name",
-                    languagea.languageAField as "languageAField"
-                  from (select *,
-                        'LanguageA' as "$type"
-                      from languages)
-                    /*viewer.languages*/
-                    as languagea) x)
-          union all
-            (select to_json(x) as x
-              from (select coalesce(to_json(languageb.*) ->> '$type', 'LanguageB') as "$type",
-                    languageb.name as "name",
-                    languageb.languageBField as "languageBField"
-                  from (select *,
-                        'LanguageB' as "$type"
-                      from languages)
-                    /*viewer.languages*/
-                    as languageb) x)) x) as "languages"
-      from (select *
+      select viewer.id as "id" ,
+        languages.json_agg as "languages"
+      from ( select *
           from organisations
-          where id = ?)
+          where id = ? )
         /*viewer*/
         as viewer
+      left join lateral (
+        ( select json_agg ( x )
+          from (
+            ( select to_json ( x ) as x
+              from ( select coalesce ( to_json ( languagea.* ) ->> '$type' , 'LanguageA' ) as "$type" ,
+                    languagea.name as "name" ,
+                    languagea.languageAField as "languageAField"
+                  from ( select * ,
+                        'LanguageA' as "$type"
+                      from languages )
+                    /*viewer.languages*/
+                    as languagea ) x )
+          union all
+            ( select to_json ( x ) as x
+              from ( select coalesce ( to_json ( languageb.* ) ->> '$type' , 'LanguageB' ) as "$type" ,
+                    languageb.name as "name" ,
+                    languageb.languageBField as "languageBField"
+                  from ( select * ,
+                        'LanguageB' as "$type"
+                      from languages )
+                    /*viewer.languages*/
+                    as languageb ) x ) ) x ) ) as languages on true
     `)
   })
 })
@@ -483,31 +490,33 @@ test("GraphQLUnionType field", () => {
   expect(res).toEqual({
     params: [undefined],
     sql: format(`
-      select viewer.id as "id",
-        (select json_agg(x)
-          from (
-            (select to_json(x) as x
-              from (select coalesce(to_json(languagea.*) ->> '$type', 'LanguageA') as "$type",
-                    languagea.languageAField as "languageAField"
-                  from (select *,
-                        'LanguageA' as "$type"
-                      from languages)
-                    /*viewer.languagesUnion*/
-                    as languagea) x)
-          union all
-            (select to_json(x) as x
-              from (select coalesce(to_json(languageb.*) ->> '$type', 'LanguageB') as "$type",
-                    languageb.languageBField as "languageBField"
-                  from (select *,
-                        'LanguageB' as "$type"
-                      from languages)
-                    /*viewer.languagesUnion*/
-                    as languageb) x)) x) as "languagesUnion"
-      from (select *
+      select viewer.id as "id" ,
+        languagesUnion.json_agg as "languagesUnion"
+      from ( select *
           from organisations
-          where id = ?)
+          where id = ? )
         /*viewer*/
         as viewer
+      left join lateral (
+        ( select json_agg ( x )
+          from (
+            ( select to_json ( x ) as x
+              from ( select coalesce ( to_json ( languagea.* ) ->> '$type' , 'LanguageA' ) as "$type" ,
+                    languagea.languageAField as "languageAField"
+                  from ( select * ,
+                        'LanguageA' as "$type"
+                      from languages )
+                    /*viewer.languagesUnion*/
+                    as languagea ) x )
+          union all
+            ( select to_json ( x ) as x
+              from ( select coalesce ( to_json ( languageb.* ) ->> '$type' , 'LanguageB' ) as "$type" ,
+                    languageb.languageBField as "languageBField"
+                  from ( select * ,
+                        'LanguageB' as "$type"
+                      from languages )
+                    /*viewer.languagesUnion*/
+                    as languageb ) x ) ) x ) ) as languagesUnion on true
     `)
   })
 })

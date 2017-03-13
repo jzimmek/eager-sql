@@ -116,7 +116,7 @@ function emitObjectType({
     fn: () => {
 
       if(selectionIsList){
-        if(selectionIsNotNull)  emit([`(select coalesce(json_agg(x),'[]'::json) as json_agg from (`])
+        if(selectionIsNotNull)  emit([`(select coalesce(json_agg(x),cast('[]' as json)) as json_agg from (`])
         else                    emit([`(select json_agg(x) from (`])
       }else{
         emit([`(select to_json(x) from (`])

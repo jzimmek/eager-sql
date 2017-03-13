@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      body {
+        height: 100%;
+        margin: 0;
+        width: 100%;
+        overflow: hidden;
+      }
+      #app {
+        height: 100vh;
+      }
+      .graphiql-container .resultWrap .footer {
+        min-height: 50% !important;
+        max-height: 50% !important;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .graphiql-container .resultWrap .footer textarea {
+        padding: 1rem;
+        overflow-y: scroll;
+        width: 100%;
+        flex: 1 100%;
+        font-family: Consolas, Inconsolata, "Droid Sans Mono", Monaco, monospace;
+        background-color: #f6f7f8;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="bundle.js"></script>
+  </body>
+</html>

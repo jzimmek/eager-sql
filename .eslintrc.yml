@@ -21,3 +21,4 @@ rules:
 globals:
   console: true
   __dirname: true
+  process: true

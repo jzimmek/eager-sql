@@ -22,9 +22,9 @@ function emitScalarType({
   if(typeof(selectionSqlConfigField)==="function"){
     emit(selectionSqlConfigField(selectionArgs, tableAs))
   }else if(typeof(selectionSqlConfigField) === "string"){
-    emit([`${tableAs}.${selectionSqlConfigField}`])
+    emit([`"${tableAs}"."${selectionSqlConfigField}"`])
   }else{
-    emit([`${tableAs}.${selectionName}`])
+    emit([`"${tableAs}"."${selectionName}"`])
   }
 }
 
@@ -45,8 +45,8 @@ function emitInterfaceUnionType({
   info,
   addLateralJoin,
 }){
-  if(selectionIsList)   emit([`${columnAlias}.json_agg `])
-  else                  emit([`${columnAlias}.to_json `])
+  if(selectionIsList)   emit([`"${columnAlias}".json_agg `])
+  else                  emit([`"${columnAlias}".to_json `])
 
   addLateralJoin({
     joinAs: `${columnAlias}`,
@@ -86,6 +86,34 @@ function emitInterfaceUnionType({
   })
 }
 
+
+
+function emitRelayConnection({
+  _queryAst,
+  selectionSqlConfigField,
+  selectionArgs,
+  tableAs,
+  _selectionIsList,
+  _selectionIsNotNull,
+  _selectionType,
+  _selectionAlias,
+  _selectionName,
+  columnAlias,
+  emit,
+  _path,
+  _schema,
+  _info,
+  addLateralJoin,
+}){
+  emit([`"${columnAlias}".json_build_object `])
+
+  addLateralJoin({
+    joinAs: `${columnAlias}`,
+    fn: () => emit(selectionSqlConfigField(selectionArgs, tableAs))
+  })
+}
+
+
 function emitObjectType({
   queryAst,
   selectionSqlConfigField,
@@ -108,8 +136,8 @@ function emitObjectType({
 
   let [nextRelation, ...nextRelationParams] = selectionSqlConfigField(selectionArgs, tableAs)
 
-  if(selectionIsList)   emit([`${columnAlias}.json_agg `])
-  else                  emit([`${columnAlias}.to_json `])
+  if(selectionIsList)   emit([`"${columnAlias}".json_agg `])
+  else                  emit([`"${columnAlias}".to_json `])
 
   addLateralJoin({
     joinAs: `${columnAlias}`,
@@ -154,7 +182,7 @@ function emitExcluded({selectionsExcluded,sqlConfigDeps,getSelectedColumns,table
         emit([`, `])
 
       deps.forEach((dep, depIdx) => {
-        emit([`${tableAs}.${dep} as "${dep}"`])
+        emit([`"${tableAs}"."${dep}" as "${dep}"`])
         if(depIdx < deps.length - 1)
           emit([`, `])
       })
@@ -236,7 +264,9 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
     if(getSelectedColumns().length)
       emit([`, `])
 
-    if(selectionIsObject){
+    if(selectionType.toString().match(/Connection$/)){
+      emitRelayConnection(traverseArgs)
+    }else if(selectionIsObject){
       emitObjectType(traverseArgs)
     } else if(selectionIsInterface||selectionIsUnion) {
       emitInterfaceUnionType(traverseArgs)
@@ -251,12 +281,12 @@ function traverse({schema, queryAst, info, fieldTypeObj, relation, relationParam
 
   emitExcluded({selectionsExcluded,sqlConfigDeps,getSelectedColumns,tableAs,emit,addSelectedColumns})
 
-  emit([` from (${relation}) /*${path.join(".")}*/ as ${tableAs}`, ...relationParams])
+  emit([` from (${relation}) /*${path.join(".")}*/ as "${tableAs}"`, ...relationParams])
 
   lateralJoins.forEach(({joinAs,fn}) => {
     emit([` left join lateral (`])
     fn()
-    emit([`) as ${joinAs} on true`])
+    emit([`) as "${joinAs}" on true`])
   })
 }
 

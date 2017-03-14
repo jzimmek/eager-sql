@@ -176,8 +176,8 @@ test("field without argument", () => {
     params: [undefined],
     sql: format(`
       select
-        viewer.id as "id"
-      from (select * from organisations where id = ?) /*viewer*/ as viewer
+        "viewer"."id" as "id"
+      from (select * from organisations where id = ?) /*viewer*/ as "viewer"
     `)
   })
 })
@@ -193,8 +193,8 @@ test("field with aliased column", () => {
     params: [undefined],
     sql: format(`
       select
-        viewer.column as "columnAlias"
-      from (select * from organisations where id = ?) /*viewer*/ as viewer
+        "viewer"."column" as "columnAlias"
+      from (select * from organisations where id = ?) /*viewer*/ as "viewer"
     `)
   })
 })
@@ -211,8 +211,8 @@ test("field with argument, static values", () => {
     params: ["joe"],
     sql: format(`
       select
-        viewer.id as "id"
-      from (select * from organisations where id = ?) /*viewer*/ as viewer
+        "viewer"."id" as "id"
+      from (select * from organisations where id = ?) /*viewer*/ as "viewer"
     `)
   })
 })
@@ -229,7 +229,7 @@ test("dynamic field expression", () => {
     sql: format(`
       select
         viewer.camel_case as "camelCase"
-      from (select * from organisations where id = ?) /*viewer*/ as viewer
+      from (select * from organisations where id = ?) /*viewer*/ as "viewer"
     `)
   })
 })
@@ -247,8 +247,8 @@ test("field with argument, variable values", () => {
     params: ["joe"],
     sql: format(`
       select
-        viewer.id as "id"
-      from (select * from organisations where id = ?) /*viewer*/ as viewer
+        "viewer"."id" as "id"
+      from (select * from organisations where id = ?) /*viewer*/ as "viewer"
     `)
   })
 })
@@ -265,9 +265,9 @@ test("multiple fields", () => {
     params: ["joe"],
     sql: format(`
       select
-        viewer.id as "id",
-        viewer.name as "name"
-      from (select * from organisations where id = ?) /*viewer*/ as viewer
+        "viewer"."id" as "id",
+        "viewer"."name" as "name"
+      from (select * from organisations where id = ?) /*viewer*/ as "viewer"
     `)
   })
 })
@@ -283,8 +283,8 @@ test("aliased field without argument", () => {
     params: [undefined],
     sql: format(`
       select
-        viewer.id as "id"
-      from (select * from organisations where id = ?) /*viewer*/ as viewer
+        "viewer"."id" as "id"
+      from (select * from organisations where id = ?) /*viewer*/ as "viewer"
     `)
   })
 })
@@ -300,8 +300,8 @@ test("aliased field with argument, static value", () => {
     params: ["joe"],
     sql: format(`
       select
-        viewer.id as "id"
-      from (select * from organisations where id = ?) /*viewer*/ as viewer
+        "viewer"."id" as "id"
+      from (select * from organisations where id = ?) /*viewer*/ as "viewer"
     `)
   })
 })
@@ -319,8 +319,8 @@ test("aliased field with argument, variable value", () => {
     params: ["joe"],
     sql: format(`
       select
-        viewer.id as "id"
-      from (select * from organisations where id = ?) /*viewer*/ as viewer
+        "viewer"."id" as "id"
+      from (select * from organisations where id = ?) /*viewer*/ as "viewer"
     `)
   })
 })
@@ -337,20 +337,20 @@ test("nested field", () => {
   expect(res).toEqual({
     params: [undefined],
     sql: format(`
-      select profile.to_json as "profile"
+      select "profile".to_json as "profile"
       from ( select *
           from organisations
           where id = ? )
         /*viewer*/
-        as viewer
+        as "viewer"
       left join lateral (
         ( select to_json ( x )
-          from ( select profile.url as "url"
+          from ( select "profile"."url" as "url"
               from ( select *
                   from profile
                   where viewer_id = viewer.id )
                 /*viewer.profile*/
-                as profile ) x ) ) as profile on true
+                as "profile" ) x ) ) as "profile" on true
     `)
   })
 })
@@ -368,21 +368,21 @@ test("scalar field and nested field", () => {
   expect(res).toEqual({
     params: [undefined],
     sql: format(`
-      select viewer.id as "id" ,
-        profile.to_json as "profile"
+      select "viewer"."id" as "id" ,
+        "profile".to_json as "profile"
       from ( select *
           from organisations
           where id = ? )
         /*viewer*/
-        as viewer
+        as "viewer"
       left join lateral (
         ( select to_json ( x )
-          from ( select profile.url as "url"
+          from ( select "profile"."url" as "url"
               from ( select *
                   from profile
                   where viewer_id = viewer.id )
                 /*viewer.profile*/
-                as profile ) x ) ) as profile on true
+                as "profile" ) x ) ) as "profile" on true
     `)
   })
 })
@@ -401,21 +401,21 @@ test("GraphQLList field", () => {
   expect(res).toEqual({
     params: [undefined],
     sql: format(`
-      select viewer.id as "id" ,
-        awards.json_agg as "awards"
+      select "viewer"."id" as "id" ,
+        "awards".json_agg as "awards"
       from ( select *
           from organisations
           where id = ? )
         /*viewer*/
-        as viewer
+        as "viewer"
       left join lateral (
         ( select json_agg ( x )
-          from ( select award.name as "name"
+          from ( select "award"."name" as "name"
               from ( select *
                   from awards
                   where viewer_id = viewer.id )
                 /*viewer.awards*/
-                as award ) x ) ) as awards on true
+                as "award" ) x ) ) as "awards" on true
     `)
   })
 })
@@ -439,35 +439,35 @@ test("GraphQLInterfaceType field with $type column", () => {
   expect(res).toEqual({
     params: [undefined],
     sql: format(`
-      select viewer.id as "id" ,
-        languages.json_agg as "languages"
+      select "viewer"."id" as "id" ,
+        "languages".json_agg as "languages"
       from ( select *
           from organisations
           where id = ? )
         /*viewer*/
-        as viewer
+        as "viewer"
       left join lateral (
         ( select json_agg ( x )
           from (
             ( select to_json ( x ) as x
               from ( select coalesce ( to_json ( languagea.* ) ->> '$type' , 'LanguageA' ) as "$type" ,
-                    languagea.name as "name" ,
-                    languagea.languageAField as "languageAField"
+                    "languagea"."name" as "name" ,
+                    "languagea"."languageAField" as "languageAField"
                   from ( select * ,
                         'LanguageA' as "$type"
                       from languages )
                     /*viewer.languages*/
-                    as languagea ) x )
+                    as "languagea" ) x )
           union all
             ( select to_json ( x ) as x
               from ( select coalesce ( to_json ( languageb.* ) ->> '$type' , 'LanguageB' ) as "$type" ,
-                    languageb.name as "name" ,
-                    languageb.languageBField as "languageBField"
+                    "languageb"."name" as "name" ,
+                    "languageb"."languageBField" as "languageBField"
                   from ( select * ,
                         'LanguageB' as "$type"
                       from languages )
                     /*viewer.languages*/
-                    as languageb ) x ) ) x ) ) as languages on true
+                    as "languageb" ) x ) ) x ) ) as "languages" on true
     `)
   })
 })
@@ -490,33 +490,33 @@ test("GraphQLUnionType field", () => {
   expect(res).toEqual({
     params: [undefined],
     sql: format(`
-      select viewer.id as "id" ,
-        languagesUnion.json_agg as "languagesUnion"
+      select "viewer"."id" as "id" ,
+        "languagesUnion".json_agg as "languagesUnion"
       from ( select *
           from organisations
           where id = ? )
         /*viewer*/
-        as viewer
+        as "viewer"
       left join lateral (
         ( select json_agg ( x )
           from (
             ( select to_json ( x ) as x
               from ( select coalesce ( to_json ( languagea.* ) ->> '$type' , 'LanguageA' ) as "$type" ,
-                    languagea.languageAField as "languageAField"
+                    "languagea"."languageAField" as "languageAField"
                   from ( select * ,
                         'LanguageA' as "$type"
                       from languages )
                     /*viewer.languagesUnion*/
-                    as languagea ) x )
+                    as "languagea" ) x )
           union all
             ( select to_json ( x ) as x
               from ( select coalesce ( to_json ( languageb.* ) ->> '$type' , 'LanguageB' ) as "$type" ,
-                    languageb.languageBField as "languageBField"
+                    "languageb"."languageBField" as "languageBField"
                   from ( select * ,
                         'LanguageB' as "$type"
                       from languages )
                     /*viewer.languagesUnion*/
-                    as languageb ) x ) ) x ) ) as languagesUnion on true
+                    as "languageb" ) x ) ) x ) ) as "languagesUnion" on true
     `)
   })
 })
@@ -532,8 +532,8 @@ test("non sql-field with deps", () => {
     params: [undefined],
     sql: format(`
       select
-        viewer.name as "name"
-      from (select * from organisations where id = ?) /*viewer*/ as viewer
+        "viewer"."name" as "name"
+      from (select * from organisations where id = ?) /*viewer*/ as "viewer"
     `)
   })
 })
@@ -549,8 +549,8 @@ test("non sql-field with deps, implicit sql config field exclude", () => {
     params: [undefined],
     sql: format(`
       select
-        viewer.name as "name"
-      from (select * from organisations where id = ?) /*viewer*/ as viewer
+        "viewer"."name" as "name"
+      from (select * from organisations where id = ?) /*viewer*/ as "viewer"
     `)
   })
 })

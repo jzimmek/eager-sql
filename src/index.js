@@ -10,6 +10,41 @@ export function createSqlResolve(schemaFn, fetchRows){
   }
 }
 
+function sql(...args){
+  let [parts,...vars] = args,
+      retVars = [],
+      s = parts.reduce((memo, part, idx) => {
+        let nextMemo = memo + part
+
+        if(idx < vars.length){
+          let varValue = vars[idx]
+
+          if(varValue === undefined)
+            varValue = null
+
+          if(varValue && varValue.__raw){
+            let varRes = varValue.__raw
+
+            if(Array.isArray(varRes)){
+              let [s2,...vars2] = varRes
+              nextMemo += s2
+              retVars = [...retVars, ...vars2]
+            }else{
+              nextMemo += varRes
+            }
+          }else{
+            nextMemo += "?"
+            retVars = [...retVars, varValue]
+          }
+
+        }
+
+        return nextMemo
+      }, "")
+
+  return [s, ...retVars]
+}
+sql.raw = (val) => ({__raw: val})
 
 export function sqlAliasAwareResolvers(schema){
   return Object
@@ -44,4 +79,8 @@ export function simpleResolve([relation,...relationParams], schema, info, fetchR
 
     return res
   })
+}
+
+export {
+  sql
 }

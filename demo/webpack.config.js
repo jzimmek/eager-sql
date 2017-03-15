@@ -2,7 +2,8 @@ let path = require("path")
 
 module.exports = {
   devtool: false,
-  entry: './src/client.js',
+  context: path.resolve(__dirname),
+  entry: path.resolve(__dirname, 'src/client.js'),
   output: {
     filename: 'bundle.js',
     path: path.resolve(__dirname, "public")

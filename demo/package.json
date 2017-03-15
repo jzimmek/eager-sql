@@ -10,6 +10,7 @@
   "license": "MIT",
   "dependencies": {
     "apollo-client": "^0.7.3",
+    "babel-cli": "^6.24.0",
     "babel-loader": "^6.4.0",
     "babel-plugin-transform-runtime": "^6.23.0",
     "babel-preset-env": "^1.2.1",
@@ -21,6 +22,7 @@
     "compression": "^1.6.2",
     "cookie-parser": "^1.4.3",
     "css-loader": "^0.27.2",
+    "eager-sql": "^0.0.4",
     "eslint-plugin-react": "^6.10.0",
     "express": "^4.15.2",
     "express-graphql": "^0.6.1",

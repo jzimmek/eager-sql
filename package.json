@@ -20,7 +20,8 @@
     "build": "node_modules/babel-cli/bin/babel.js src -d lib",
     "test": "node_modules/jest/bin/jest.js --env node ./src/*/*",
     "prepublish": "npm run clean && npm run build",
-    "demo-build": "demo/node_modules/webpack/bin/webpack.js --config demo/webpack.config.js",
+    "demo-build": "pushd ./demo && (npm install && node_modules/webpack/bin/webpack.js --config webpack.config.js); popd",
+    "demo-run": "npm run demo-build && DATABASE_URL=postgres://`whoami`:@localhost:5432/`whoami` PORT=3000 demo/node_modules/babel-cli/bin/babel-node.js demo/src/index.js",
     "demo-deploy": "git subtree push --prefix demo heroku master"
   },
   "dependencies": {}

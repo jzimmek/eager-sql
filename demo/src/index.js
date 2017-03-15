@@ -3,6 +3,7 @@ import "isomorphic-fetch"
 import pg from "pg"
 pg.types.setTypeParser(20, 'text', parseInt)
 
+import path from "path"
 import knex from "knex"
 import express from "express"
 
@@ -34,7 +35,7 @@ const db = knex({
 
 const app = express()
 
-app.use(express.static("public"))
+app.use(express.static(path.resolve(__dirname, "..", "public")))
 
 app.use(compression())
 app.use(bodyParser.json({limit: "5000kb"}))

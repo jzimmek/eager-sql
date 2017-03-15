@@ -78834,9 +78834,12 @@ var DemoGraghiQl = function (_Component) {
         headers: { 'Content-Type': 'application/json' },
         body: (0, _stringify2.default)(graphQLParams)
       }).then(function (response) {
+        var sql = response.headers.get("x-sql"),
+            sqlParams = response.headers.get("x-sql-params");
+
         _this2.setState({
-          sql: response.headers.get("x-sql"),
-          sqlParams: response.headers.get("x-sql-params")
+          sql: sql && decodeURIComponent(sql),
+          sqlParams: sqlParams && decodeURIComponent(sqlParams)
         });
         return response;
       }).then(function (response) {

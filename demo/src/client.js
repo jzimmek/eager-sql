@@ -27,9 +27,12 @@ class DemoGraghiQl extends Component {
       body: JSON.stringify(graphQLParams),
     })
     .then(response => {
+      let sql = response.headers.get("x-sql"),
+          sqlParams = response.headers.get("x-sql-params")
+
       this.setState({
-        sql: response.headers.get("x-sql"),
-        sqlParams: response.headers.get("x-sql-params"),
+        sql: sql && decodeURIComponent(sql),
+        sqlParams: sqlParams && decodeURIComponent(sqlParams),
       })
       return response
     })

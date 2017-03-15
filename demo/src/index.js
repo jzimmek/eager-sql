@@ -48,8 +48,8 @@ app.use("/graphql", bodyParser.json(), (req,res) => {
   // graphqlExpress({schema})(req,res)
 
   const logSql = ({sql,params}) => {
-    res.setHeader('x-sql', sql)
-    res.setHeader('x-sql-params', params)
+    res.setHeader('x-sql', encodeURIComponent(sql))
+    res.setHeader('x-sql-params', encodeURIComponent(JSON.stringify(params)))
   }
 
   runHttpQuery([req, res], {

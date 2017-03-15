@@ -1,5 +1,7 @@
 begin;
 
+create extension if not exists "pgcrypto";
+
 drop table if exists friends;
 drop table if exists people;
 

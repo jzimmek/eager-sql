@@ -1,3 +1,5 @@
+/*global Buffer*/
+
 import sqlAliasAwareFieldResolver from "./sqlAliasAwareFieldResolver"
 import simpleResolveSQLParts from "./simpleResolveSQLParts"
 import typeDetails from "./typeDetails"
@@ -9,6 +11,43 @@ export function createSqlResolve(schemaFn, fetchRows){
     }
   }
 }
+
+export const pagination = {
+  cursor: ({before,after,first,last}, fn) => {
+    after = after ? JSON.parse(Buffer.from(after, "base64").toString("utf8")) : []
+    before = before ? JSON.parse(Buffer.from(before, "base64").toString("utf8")) : []
+
+    const limit = Math.max(first||0,last||0) || 10,
+          subSql = fn(before, after),
+          withSql = sql`
+            with query as (
+              ${sql.raw(subSql)}
+            ), limited_query as (
+              select * from query order by "$row_number" ${sql.raw(first ? "asc" : "desc")} limit ${limit}
+            ), ordered_query as (
+              select * from limited_query order by "$row_number" asc
+            ), edges as (
+              select json_build_object('cursor', encode(cast(cast("$cursor" as text) as bytea),'base64'), 'node', cast(to_json(q) as jsonb) - '$cursor' - '$row_number') from ordered_query q
+            ), connection as (
+              select json_build_object(
+                'edges',
+                coalesce((select json_agg(e.json_build_object) from edges e), cast('[]' as json)),
+                'pageInfo',
+                json_build_object(
+                  'hasPreviousPage',
+                  coalesce((select count(1) > cast(${last} as integer) from query), false),
+                  'hasNextPage',
+                  coalesce((select count(1) > cast(${first} as integer) from query), false)
+                )
+              )
+            )
+            select json_build_object from connection
+          `
+
+    return withSql
+  }
+}
+
 
 function sql(...args){
   let [parts,...vars] = args,

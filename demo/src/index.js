@@ -11,7 +11,8 @@ import cookieParser from "cookie-parser"
 
 import {graphqlExpress} from 'graphql-server-express'
 import createSchema from "./createSchema"
-import logSql from "eager-sql/lib/logSql"
+
+import {eagerSqlContext}  from "eager-sql/lib"
 
 process.on("unhandledRejection", (reason, _promise) => console.info("unhandledRejection", reason))
 
@@ -39,9 +40,14 @@ app.use(bodyParser.json({limit: "5000kb"}))
 app.use(bodyParser.urlencoded({extended: true}))
 app.use(cookieParser())
 
+const schema = createSchema()
+
 app.use("/graphql", graphqlExpress((req, res) => {
   return {
-    schema: createSchema({db, logSql: logSql(res)})
+    schema,
+    context: {
+      eagerSql: eagerSqlContext({db,res})
+    }
   }
 }))
 

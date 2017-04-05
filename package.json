@@ -2,7 +2,10 @@
   "name": "eager-sql",
   "version": "0.0.4",
   "main": "./lib/index.js",
-  "files": ["./lib", "./graphiql/build/index.html"],
+  "files": [
+    "./lib",
+    "./graphiql/build/index.html"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jzimmek/eager-sql.git"
@@ -23,5 +26,10 @@
     "demo": "pushd demo && DATABASE_URL=postgres://`whoami`:@localhost:5432/`whoami` PORT=3000 node_modules/babel-cli/bin/babel-node.js src/index.js; popd",
     "deploy": "git subtree push --prefix demo heroku master"
   },
-  "dependencies": {}
+  "dependencies": {
+    "camelize": "^1.0.0"
+  },
+  "peerDependencies": {
+    "knex": "0.12.x"
+  }
 }

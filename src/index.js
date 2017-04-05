@@ -1,13 +1,25 @@
 /*global Buffer*/
 
+import camelize from "camelize"
+
 import sqlAliasAwareFieldResolver from "./sqlAliasAwareFieldResolver"
 import simpleResolveSQLParts from "./simpleResolveSQLParts"
 import typeDetails from "./typeDetails"
+import logSql from "./logSql"
 
-export function createSqlResolve(schemaFn, fetchRows){
+
+export function eagerSqlContext({db,res}){
+  return {
+    fetchRows: (sql,params) => db.raw(sql, params).then(e => camelize(e.rows)),
+    logSql: logSql(res),
+  }
+}
+
+export function createSqlResolve(schema){
   return (fn) => {
     return (obj,args,ctx,info) => {
-      return simpleResolve(fn(obj,args,ctx,info), schemaFn(), info, fetchRows)
+      const {fetchRows,logSql} = ctx.eagerSql
+      return simpleResolve(fn(obj,args,ctx,info), schema, info, fetchRows, logSql)
     }
   }
 }
@@ -106,9 +118,11 @@ export function sqlAliasAwareResolvers(schema){
     }, {})
 }
 
-export function simpleResolve([relation,...relationParams], schema, info, fetchRows){
+export function simpleResolve([relation,...relationParams], schema, info, fetchRows, logSql){
   let {sql,params} = simpleResolveSQLParts([relation,...relationParams], schema, info),
       fieldType = typeDetails(info.returnType)
+
+  logSql({sql,params})
 
   return fetchRows(sql,params).then(res => {
     if(Array.isArray(res)){

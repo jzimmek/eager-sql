@@ -1,9 +1,10 @@
 import {makeExecutableSchema,addResolveFunctionsToSchema} from 'graphql-tools'
-import camelize from "camelize"
+
+import {buildSchema} from "graphql"
 
 import {sqlAliasAwareResolvers,createSqlResolve,sql,pagination} from "eager-sql"
 
-export default ({db,logSql}) => {
+export default () => {
 
   const logger = {log: (e) => console.log(e) }
 
@@ -39,13 +40,7 @@ export default ({db,logSql}) => {
     }
   `]
 
-  const sqlResolve = createSqlResolve(
-    () => schema,
-    (sql, params) => {
-      logSql({sql, params})
-      return db.raw(sql, params).then(e => camelize(e.rows))
-    },
-  )
+  const sqlResolve = createSqlResolve(buildSchema(typeDefs[0]))
 
   let resolvers = {
     Person: {

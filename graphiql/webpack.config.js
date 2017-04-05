@@ -1,4 +1,6 @@
-let path = require("path")
+let path = require("path"),
+    HtmlWebpackPlugin = require("html-webpack-plugin"),
+    HtmlWebpackInlineSourcePlugin = require('html-webpack-inline-source-plugin')
 
 module.exports = {
   devtool: false,
@@ -6,8 +8,15 @@ module.exports = {
   entry: path.resolve(__dirname, 'src/client.js'),
   output: {
     filename: 'bundle.js',
-    path: path.resolve(__dirname, "public")
+    path: path.resolve(__dirname, "build")
   },
+  plugins: [
+    new HtmlWebpackPlugin({
+      inlineSource: '.(js|css)$',
+      template: path.resolve(__dirname, 'src/index.html.ejs')
+    }),
+    new HtmlWebpackInlineSourcePlugin()
+  ],
   module: {
     rules: [
       {

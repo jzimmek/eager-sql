@@ -1,7 +1,7 @@
 import {makeExecutableSchema,addResolveFunctionsToSchema} from 'graphql-tools'
 import camelize from "camelize"
 
-import {sqlAliasAwareResolvers,createSqlResolve,sql,pagination} from "eager-sql" //"../../src/index.js" //"eager-sql"
+import {sqlAliasAwareResolvers,createSqlResolve,sql,pagination} from "eager-sql"
 
 export default ({db,logSql}) => {
 

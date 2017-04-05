@@ -1,5 +1,3 @@
-import "isomorphic-fetch"
-
 import pg from "pg"
 pg.types.setTypeParser(20, 'text', parseInt)
 
@@ -11,10 +9,9 @@ import compression from "compression"
 import bodyParser from 'body-parser'
 import cookieParser from "cookie-parser"
 
-import {graphiqlExpress} from 'graphql-server-express'
-import { runHttpQuery } from 'graphql-server-core'
-
+import {graphqlExpress} from 'graphql-server-express'
 import createSchema from "./createSchema"
+import logSql from "eager-sql/lib/logSql"
 
 process.on("unhandledRejection", (reason, _promise) => console.info("unhandledRejection", reason))
 
@@ -35,51 +32,18 @@ const db = knex({
 
 const app = express()
 
-app.use(express.static(path.resolve(__dirname, "..", "public")))
+app.use(express.static(path.resolve(__dirname, "..", "..", "graphiql", "build")))
 
 app.use(compression())
 app.use(bodyParser.json({limit: "5000kb"}))
 app.use(bodyParser.urlencoded({extended: true}))
 app.use(cookieParser())
 
-app.use('/graphiql', graphiqlExpress({endpointURL: '/graphql'}))
-
-app.use("/graphql", bodyParser.json(), (req,res) => {
-  // let schema = createSchema({db})
-  // graphqlExpress({schema})(req,res)
-
-  const logSql = ({sql,params}) => {
-    res.setHeader('x-sql', encodeURIComponent(sql))
-    res.setHeader('x-sql-params', encodeURIComponent(JSON.stringify(params)))
+app.use("/graphql", graphqlExpress((req, res) => {
+  return {
+    schema: createSchema({db, logSql: logSql(res)})
   }
-
-  runHttpQuery([req, res], {
-    method: req.method,
-    options: {
-      schema: createSchema({db,logSql})
-    },
-    query: req.method === 'POST' ? req.body : req.query,
-  }).then((gqlResponse) => {
-    res.setHeader('Content-Type', 'application/json')
-    res.write(gqlResponse)
-    res.end()
-  }, (error) => {
-    if ( 'HttpQueryError' !== error.name ) {
-      throw error
-    }
-
-    if ( error.headers ) {
-      Object.keys(error.headers).forEach((header) => {
-        res.setHeader(header, error.headers[header])
-      })
-    }
-
-    res.statusCode = error.statusCode
-    res.write(error.message)
-    res.end()
-  })
-
-})
+}))
 
 app.listen(process.env.PORT)
 

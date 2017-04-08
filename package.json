@@ -1,10 +1,10 @@
 {
   "name": "eager-sql",
-  "version": "0.0.4",
+  "version": "0.0.6",
   "main": "./lib/index.js",
   "files": [
-    "./lib",
-    "./graphiql/build/index.html"
+    "lib",
+    "graphiql/build/index.html"
   ],
   "repository": {
     "type": "git",

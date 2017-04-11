@@ -19,7 +19,7 @@ export function createSqlResolve(schema){
   return (fn) => {
     return (obj,args,ctx,info) => {
       const {fetchRows,logSql} = ctx.eagerSql
-      return simpleResolve(fn(obj,args,ctx,info), schema, info, fetchRows, logSql)
+      return Promise.resolve(fn(obj,args,ctx,info)).then(sql => simpleResolve(sql, schema, info, fetchRows, logSql))
     }
   }
 }

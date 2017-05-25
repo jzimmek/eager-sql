@@ -1,4 +1,4 @@
 {
-  "name": "Eager-SQL Demo",
+  "name": "graphql-pg",
   "image": "heroku/nodejs"
 }

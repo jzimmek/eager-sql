@@ -1,24 +1,50 @@
 env:
   browser: true
   es6: true
-extends: 'eslint:recommended'
+  "jest/globals": true
+extends:
+  - "eslint:recommended"
+  - "plugin:jest/recommended"
+parser: "babel-eslint"
 parserOptions:
   ecmaVersion: 8
   ecmaFeatures:
     experimentalObjectRestSpread: true
+    jsx: true
   sourceType: module
+  allowImportExportEverywhere: false
+plugins:
+  - babel
+  - react
+  - flowtype-errors
+  - jest
 rules:
   strict: 0
+  flowtype-errors/show-errors: 2
+  flowtype-errors/enforce-min-coverage: [2, 10]
   linebreak-style:
     - error
     - unix
   semi:
     - error
     - never
+  react/jsx-uses-vars:
+    - error
+  react/jsx-uses-react:
+    - error
   no-console:
     - 0
-  no-unused-vars: [2, {"argsIgnorePattern": "^_"}]
+  no-unused-vars:
+    - 2
+    -
+      argsIgnorePattern: ^_
+      varsIgnorePattern: ^_
 globals:
+  process: true
+  window: true
+  document: true
   console: true
   __dirname: true
-  process: true
+  require: true
+  module: true
+  FB: true

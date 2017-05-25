@@ -1,55 +1,460 @@
-/*global Buffer*/
+import {Buffer} from "buffer"
+import gql from "graphql-tag"
+import {getVariableValues,getArgumentValues} from "graphql/execution/values"
+import {isCompositeType} from "graphql/type/definition"
 
-import sqlAliasAwareFieldResolver from "./sqlAliasAwareFieldResolver"
-import simpleResolveSQLParts from "./simpleResolveSQLParts"
-import typeDetails from "./typeDetails"
+import merge, {SPLIT} from "./merge"
 
-export function createSqlResolve(schemaFn, fetchRows){
-  return (fn) => {
-    return (obj,args,ctx,info) => {
-      return simpleResolve(fn(obj,args,ctx,info), schemaFn(), info, fetchRows)
+function isNonNull(fieldDefinition){
+  return fieldDefinition.type.kind === "NonNullType"
+}
+
+function isList(fieldDefinition){
+  return (isNonNull(fieldDefinition) ? fieldDefinition.type : fieldDefinition).type.kind === "ListType"
+}
+
+function isObject(fieldDefinition, schema){
+  if(isList(fieldDefinition))
+    return false
+
+  const {type} = isNonNull(fieldDefinition) ? fieldDefinition.type : fieldDefinition
+
+  const x = schema.definitions.find(e => e.name.value === type.name.value)
+
+  return !!x && x.kind === "ObjectTypeDefinition"
+}
+
+function isUnion(fieldDefinition, schema){
+  if(isList(fieldDefinition))
+    return false
+
+  const {type} = isNonNull(fieldDefinition) ? fieldDefinition.type : fieldDefinition
+
+  const x = schema.definitions.find(e => e.name.value === type.name.value)
+
+  return !!x && x.kind === "UnionTypeDefinition"
+}
+
+function isScalar(fieldDefinition, schema){
+  return !isList(fieldDefinition) && !isObject(fieldDefinition, schema) && !isUnion(fieldDefinition, schema)
+}
+
+function unwrapType(fieldDefinition){
+  return fieldDefinition.type ? unwrapType(fieldDefinition.type) : fieldDefinition
+}
+
+function selectionInfo({typeAst, typeName, selection, schemaAst, idx=""}){
+  const fieldDefinitionAst = typeAst.fields.find(e => e.name.value === selection.name.value)
+
+  if(!fieldDefinitionAst)
+    throw new Error(`field not found: ${selection.name.value} on type: ${typeName}`)
+
+  const columnDirective = fieldDefinitionAst.directives.find(e => e.name.value === "column"),
+        columnDirectiveName = columnDirective ? (columnDirective.arguments.find(e => e.name.value === "name")||{value:{}}).value.value : null,
+        columnName = columnDirectiveName ? columnDirectiveName : selection.name.value,
+        columnNameAs = (selection.alias ? selection.alias.value : selection.name.value) + (idx ? `${SPLIT}${idx}` : "")
+
+  return {
+    columnName,
+    columnNameAs,
+    fieldDefinitionAst,
+    selection,
+    isUnion: isUnion(fieldDefinitionAst, schemaAst),
+    isScalar: isScalar(fieldDefinitionAst, schemaAst),
+    isList: isList(fieldDefinitionAst),
+    isObject: isObject(fieldDefinitionAst, schemaAst),
+    type: unwrapType(fieldDefinitionAst).name.value,
+    columnDirective: fieldDefinitionAst.directives.find(e => e.name.value === "column"),
+  }
+}
+
+function getArgs({transpileInfo: ti, selectionInfo: si}){
+  const variableValues = getVariableValues(ti.schema, ti.queryDefinitionsAst[0], ti.variableValues)
+
+  // console.info("/////", JSON.stringify(variableValues, null, 2), JSON.stringify(ti.variableValues, null, 2))
+  //
+  // console.info("=======", JSON.stringify(si.selection,null,2))
+  // console.info("=======2", JSON.stringify(ti.schema.getType(ti.typeName).getFields()[si.selection.name.value],null,2))
+
+  const argumentValues = getArgumentValues(ti.schema.getType(ti.typeName).getFields()[si.selection.name.value], si.selection, ti.variableValues)
+
+  return {...variableValues, ...argumentValues}
+}
+
+function transpileScalar({transpileInfo: ti, selectionInfo: si}){
+  const contextValue = {...ti.contextValue, table: `"${ti.table}"`},
+        select = ti.selects[ti.typeName] && ti.selects[ti.typeName][si.selection.name.value]
+
+  const sqlParts = select ? select(
+    getArgs({transpileInfo: ti, selectionInfo: si}),
+    contextValue
+  ) : [`"${ti.table}"."${si.columnName}"`]
+
+  return {
+    sql: [
+      sqlParts[0],
+      ...sqlParts.slice(1).map(e => ({__param: e})),
+      ` as "${si.columnNameAs}"`
+    ],
+    joins: [],
+  }
+}
+
+function transpileInJsonFunc({transpileInfo: ti, selectionInfo: si}, inner){
+  const json_func = si.isObject ? "to_json" : "json_agg"
+
+  if(ti.typeName === "Query" || ti.typeName === "Mutation"){
+    return {
+      sql: [
+        `(select ${json_func}(y) from (`,
+        inner,
+        `) as y) as "${si.columnNameAs}"`,
+      ],
+      joins: [],
+    }
+  } else {
+    return {
+      joins: [
+        `left join lateral (select ${json_func}(x) from (`,
+        inner,
+        `) as x) as "${si.columnNameAs}" on true`
+      ],
+      sql: [
+        ...(si.isObject ? [`"${si.columnNameAs}".${json_func} as "${si.columnNameAs}"`] : []),
+        ...(si.isList ? [`coalesce("${si.columnNameAs}".${json_func}, '[]') as "${si.columnNameAs}"`] : []),
+      ]
     }
   }
 }
 
-export const pagination = {
-  cursor: ({before,after,first,last}, fn) => {
-    after = after ? JSON.parse(Buffer.from(after, "base64").toString("utf8")) : []
-    before = before ? JSON.parse(Buffer.from(before, "base64").toString("utf8")) : []
+function transpileObjectAndList({transpileInfo: ti, selectionInfo: si}){
+  const contextValue = {...ti.contextValue, table: `"${ti.table}"`},
+        select = ti.selects[ti.typeName] && ti.selects[ti.typeName][si.selection.name.value],
+        sqlParts = select ? select(
+          getArgs({transpileInfo: ti, selectionInfo: si}),
+          contextValue
+        ) : (si.isObject ? null : [])
 
-    const limit = Math.max(first||0,last||0) || 10,
-          subSql = fn(before, after),
-          withSql = sql`
-            with query as (
-              ${sql.raw(subSql)}
-            ), limited_query as (
-              select * from query order by "$row_number" ${sql.raw(first ? "asc" : "desc")} limit ${limit}
-            ), ordered_query as (
-              select * from limited_query order by "$row_number" asc
-            ), edges as (
-              select json_build_object('cursor', encode(cast(cast("$cursor" as text) as bytea),'base64'), 'node', cast(to_json(q) as jsonb) - '$cursor' - '$row_number') from ordered_query q
-            ), connection as (
-              select json_build_object(
-                'edges',
-                coalesce((select json_agg(e.json_build_object) from edges e), cast('[]' as json)),
-                'pageInfo',
-                json_build_object(
-                  'hasPreviousPage',
-                  coalesce((select count(1) > cast(${last} as integer) from query), false),
-                  'hasNextPage',
-                  coalesce((select count(1) > cast(${first} as integer) from query), false)
-                )
-              )
-            )
-            select json_build_object from connection
-          `
+  // TODO: handle non sql (!select) properly
 
-    return withSql
+  if(Array.isArray(sqlParts)){
+    const inner = transpile({
+      ...ti,
+      queryAst: si.selection,
+      typeName: si.type,
+      table: si.columnNameAs,
+      from: [
+        sqlParts[0],
+        ...sqlParts.slice(1).map(e => ({__param: e}))
+      ]
+    })
+
+    return transpileInJsonFunc({transpileInfo: ti, selectionInfo: si}, inner)
+
+  }else if(typeof(sqlParts) === "object"){
+
+    if(sqlParts.kind === "cursor"){
+      return {
+        sql: [
+          `(select x.* from (`,
+          sqlParts.sql[0],
+          ...sqlParts.sql.slice(1).map(e => ({__param: e})),
+          `) x) as "${si.columnNameAs}"`,
+        ],
+        joins: [],
+      }
+    }else{
+
+      // union
+
+      const jsonFunc = si.isUnion ? "to_json" : "json_agg"
+
+      let inner = Object.keys(sqlParts.types).reduce((memo,typeName,idx,arr) => {
+
+        const sqlParts2 = sqlParts.types[typeName],
+              inner2 = transpile({
+                ...ti,
+                queryAst: si.selection,
+                typeName: typeName,
+                table: si.columnNameAs,
+                from: [
+                  sqlParts2[0],
+                  ...sqlParts2.slice(1).map(e => ({__param: e}))
+                ]
+              })
+
+        return [
+          ...memo,
+          [`(select ('{"type":"${typeName}"}'::jsonb || to_json(x.*)::jsonb) as to_json from (`, inner2,`) as x)`],
+          ...((idx < arr.length - 1) ? ["union all"] : [])
+        ]
+      }, [])
+
+      if(sqlParts.wrapper)
+        inner = sqlParts.wrapper(inner)
+
+      return {
+        sql: [`(select ${jsonFunc}(y.to_json) from (`,inner,`) as y) as "${si.columnNameAs}"`],
+        joins: [],
+      }
+    }
+
+
+  }else{
+    throw new Error(`no sql return value of ${ti.typeName}.${si.selection.name.value}`)
   }
 }
 
+function transpileSelection({transpileInfo:ti,selectionInfo:si}){
+  if((ti.typeName==="Query" || ti.typeName==="Mutation") && si.isScalar){
+    throw new Error(`scalar: ${si.selection.name.value} not supported on type: ${ti.typeName}`)
+  }
 
-function sql(...args){
+  if(si.isScalar){
+    return transpileScalar({transpileInfo: ti, selectionInfo: si})
+  }else if(si.isObject||si.isList||si.isUnion){
+    return transpileObjectAndList({transpileInfo: ti, selectionInfo: si})
+  }
+}
+
+function onlyNonSchemaSelections(){
+  return (selection) => {
+    return !selection.name || selection.name.value !== "__schema"
+  }
+}
+
+function onlySelectionsForSqlFields(selects, typeAst, typeName, schemaAst){
+  return (selection) => {
+    if(selection.kind === "Field"){
+
+      if(selection.name.value === "__typename")
+        return true
+
+      if(selects[typeName] && selects[typeName][selection.name.value])
+        return true
+
+      const si = selectionInfo({typeAst,typeName,selection,schemaAst})
+
+      if(["ID","String","Int","Boolean","Float"].includes(si.type))
+        return !!si.columnDirective
+    }
+
+    return true
+  }
+}
+
+function appendSelectionForIdField(typeName){
+  return (memo,selection,idx,arr) => {
+    return [
+      ...memo,
+      selection,
+      ...(!["Query","Mutation"].includes(typeName) && !typeName.match(/Connection$/) && idx === arr.length -1 ? [
+        {
+          kind: "Field",
+          name: {value: "id"},
+          directives: [],
+          arguments: [],
+          selectionSet: null,
+        }
+      ] : [])
+    ]
+  }
+}
+
+function transpileFragmentSelections(selections, typeName, typeAst, schemaAst, idx, transpileInfo){
+  let sql = [],
+      joins = []
+
+  selections.forEach((selection2,idx2,arr2) => {
+    if(selection2.kind === "Field" && selection2.name.value === "__typename"){
+      sql = [...sql, `'${typeName}' as "__typename"`]
+
+    }else if(["InlineFragment","FragmentSpread"].includes(selection2.kind)){
+
+      const {selectionSet:{selections:selections3}} = (selection2.kind === "InlineFragment")
+        ? selection2
+        : transpileInfo
+            .queryDefinitionsAst
+            .find(e => e.kind === "FragmentDefinition" && e.name.value === selection2.name.value)
+
+      const {sql:sql2,joins:joins2} = transpileFragmentSelections(selections3, typeName, typeAst, schemaAst, idx, transpileInfo)
+
+      sql = [...sql, ...sql2]
+      joins = [...joins, ...joins2]
+
+    }else{
+      const si = selectionInfo({typeAst,typeName,selection:selection2,schemaAst,idx:`${idx}`}),
+            {sql:sql2,joins:joins2} = transpileSelection({transpileInfo, selectionInfo: si})
+
+      sql = [...sql, ...sql2]
+      joins = [...joins, ...joins2]
+    }
+
+    if(idx2 < arr2.length - 1)
+      sql = [...sql, ","]
+  })
+
+  return {
+    sql,
+    joins,
+  }
+}
+
+function onlyMatchingFragmentTypsConditions(typeName, queryDefinitionsAst){
+  return (selection) => {
+    if(selection.kind === "InlineFragment"){
+      return selection.typeCondition.name.value === typeName
+    }else if(selection.kind === "FragmentSpread"){
+      const fragmentAst = queryDefinitionsAst.find(e => e.kind === "FragmentDefinition" && e.name.value === selection.name.value)
+      return fragmentAst.typeCondition.name.value === typeName
+    }
+
+    return true
+  }
+}
+
+function transpile(transpileInfo){
+  const {selects, queryAst, queryDefinitionsAst, schemaAst, typeName, from, table} = transpileInfo,
+        {selectionSet} = queryAst,
+        typeAst = schemaAst.definitions.find(e => e.kind === "ObjectTypeDefinition" && e.name.value === typeName)
+
+
+  let sql = ["select"],
+      joins = []
+
+  const selections = selectionSet.selections
+    .reduce(appendSelectionForIdField(typeName), [])
+    .filter(onlyNonSchemaSelections())
+    .filter(onlyMatchingFragmentTypsConditions(typeName, queryDefinitionsAst))
+    .filter(onlySelectionsForSqlFields(selects, typeAst, typeName, schemaAst))
+
+  if(!selections.length)
+    return []
+
+  selections.forEach((selection,idx,arr) => {
+    if(selection.kind === "FragmentSpread"){
+      const fragmentAst = queryDefinitionsAst.find(e => e.kind === "FragmentDefinition" && e.name.value === selection.name.value),
+            {sql:sql2,joins:joins2} = transpileFragmentSelections(fragmentAst.selectionSet.selections, typeName, typeAst, schemaAst, idx, transpileInfo)
+
+      sql = [...sql, ...sql2]
+      joins = [...joins, ...joins2]
+    }else if(selection.kind === "InlineFragment") {
+      const {sql:sql2,joins:joins2} = transpileFragmentSelections(selection.selectionSet.selections, typeName, typeAst, schemaAst, idx, transpileInfo)
+
+      sql = [...sql, ...sql2]
+      joins = [...joins, ...joins2]
+    }else if(selection.kind === "Field") {
+      const selection2 = selection
+
+      if(selection2.name.value === "__typename"){
+        sql = [...sql, `'${typeName}' as "__typename"`]
+      }else{
+
+        const si = selectionInfo({typeAst,typeName,selection:selection2,schemaAst}),
+              {sql:sql2,joins:joins2} = transpileSelection({transpileInfo, selectionInfo: si})
+
+        sql = [...sql, ...sql2]
+        joins = [...joins, ...joins2]
+      }
+    }
+
+    if(idx < arr.length - 1)
+      sql = [...sql, ","]
+  })
+
+  if(from)
+    sql = [...sql, `from (`, from, `) as "${table}"`]
+
+  sql = [...sql, ...joins]
+
+  return sql
+}
+
+function flatten(arr){
+  return arr.reduce((memo, e) => Array.isArray(e) ? [...memo, ...flatten(e)] : [...memo, e], [])
+}
+
+function toExecutableSqlAndParams(sqlArr){
+  const sqlArrFlatten = flatten(sqlArr),
+        sql = sqlArrFlatten.filter(e => typeof(e) === "string").join(" "),
+        params = sqlArrFlatten.filter(e => typeof(e) !== "string").map(e => e.__param)
+
+  return {sql,params}
+}
+
+function sqlResolve({db, schema, selects, schemaStr, queryStr, contextValue={}, variables={}, log}){
+
+  return (typeName) => {
+    const info = gql`${queryStr}`
+
+    const sqlArr = transpile({
+      selects,
+      queryAst: info.definitions[0],
+      queryDefinitionsAst: info.definitions,
+      schemaAst: gql`${schemaStr}`,
+      schema,
+      typeName,
+      contextValue,
+      variableValues: variables,
+    })
+
+    if(!sqlArr.length)
+      return {}
+
+    const {sql,params} = toExecutableSqlAndParams(sqlArr)
+
+    if(log)
+      log(sql, params)
+
+    // console.info(">>>>>>>>> sql >>>>>>>>>\n", sql)
+    // console.info(">>>>>>>>> params >>>>>>\n", params)
+
+    return db.raw(sql, params).then(({rows}) => {
+      const res = (typeName === "Mutation") ? rows[0][info.definitions[0].selectionSet.selections[0].name.value] : rows[0],
+            mergedRes = Array.isArray(res) ? merge({entries:res}, {entries:res}).entries : merge(res, res)
+
+      // console.info("==== unmerged ======\n", JSON.stringify(res,null,2))
+      // console.info("==== merged ======\n", JSON.stringify(mergedRes,null,2))
+
+      return mergedRes
+    })
+  }
+}
+
+function aliasAwareResolve(origResolve){
+  return (obj,args,ctx,info) => {
+    let ast = info.fieldNodes[0],
+        key = ast.alias ? ast.alias.value : ast.name.value
+
+    if(obj[key] === undefined && origResolve)
+      return origResolve(obj,args,ctx,info)
+
+    return obj[key]
+  }
+}
+
+export function makeResolverAliasAware(schema){
+  Object.keys(schema.getTypeMap()).forEach(typeName => {
+    const type = schema.getType(typeName)
+
+    if(isCompositeType(type) && type.getFields){
+      Object.keys(type.getFields()).forEach(fieldName => {
+        const field = type.getFields()[fieldName]
+        field.resolve = aliasAwareResolve(field.resolve)
+      })
+    }
+  })
+}
+
+export function createRootResolve({db, schema, selects, schemaStr, contextValue, query, variables, log}){
+  const clientAst = gql`${query}`,
+        {definitions:[{operation}]} = clientAst,
+        resolve = sqlResolve({db, schema, selects, schemaStr, queryStr: clientAst, contextValue, variables, log})
+
+  return (operation === "mutation") ? Promise.resolve(({sqlResolve: () => resolve("Mutation")})) : resolve("Query")
+}
+
+export function sql(...args){
   let [parts,...vars] = args,
       retVars = [],
       s = parts.reduce((memo, part, idx) => {
@@ -83,43 +488,52 @@ function sql(...args){
 
   return [s, ...retVars]
 }
+
 sql.raw = (val) => ({__raw: val})
 
-export function sqlAliasAwareResolvers(schema){
-  return Object
-    .keys(schema.getTypeMap())
-    .map(e => schema.getTypeMap()[e])
-    .filter(e => e.constructor.name === "GraphQLObjectType")
-    .filter(e => !e.name.match(/^__/))
-    .filter(e => ![
-      schema.getQueryType(),
-      schema.getMutationType(),
-      schema.getSubscriptionType()
-    ].includes(e))
-    .reduce((memo, type) => {
-      return {
-        ...memo,
-        [type.name]: Object.keys(type._fields).reduce((memo, key) => {
-          return {...memo, [key]: sqlAliasAwareFieldResolver.bind(null, type._fields[key].resolve)}
-        }, {})
-      }
-    }, {})
-}
+export function cursor({before,after,first,last}, fn){
+  after = after ? JSON.parse(Buffer.from(after, "base64").toString("utf8")) : []
+  before = before ? JSON.parse(Buffer.from(before, "base64").toString("utf8")) : []
 
-export function simpleResolve([relation,...relationParams], schema, info, fetchRows){
-  let {sql,params} = simpleResolveSQLParts([relation,...relationParams], schema, info),
-      fieldType = typeDetails(info.returnType)
+  const limit = Math.max(first||0,last||0) || 10,
+        subSql = fn(before, after),
+        withSql = sql`
+          with query as (
+            ${sql.raw(subSql)}
+          ), limited_query as (
+            select * from query order by "$row_number" ${sql.raw(first ? "asc" : "desc")} limit ${limit}
+          ), ordered_query as (
+            select * from limited_query order by "$row_number" asc
+          ), edges as (
+            select
+              json_build_object(
+                -- merge array expects an id
+                'id',
+                encode(cast(cast("$cursor" as text) as bytea),'base64'),
+                'cursor',
+                encode(cast(cast("$cursor" as text) as bytea),'base64'),
+                'node',
+                cast(to_json(q) as jsonb) - '$cursor' - '$row_number'
+              )
+            from ordered_query q
+          ), connection as (
+            select json_build_object(
+              'edges',
+              coalesce((select json_agg(e.json_build_object) from edges e), cast('[]' as json)),
+              'pageInfo',
+              json_build_object(
+                'hasPreviousPage',
+                coalesce((select count(1) > cast(${last} as integer) from query), false),
+                'hasNextPage',
+                coalesce((select count(1) > cast(${first} as integer) from query), false)
+              )
+            )
+          )
+          select json_build_object from connection
+        `
 
-  return fetchRows(sql,params).then(res => {
-    if(Array.isArray(res)){
-      if(!fieldType.isList)
-      return res[0]
-    }
-
-    return res
-  })
-}
-
-export {
-  sql
+  return {
+    kind: "cursor",
+    sql: withSql,
+  }
 }

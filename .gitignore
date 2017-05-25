@@ -39,3 +39,4 @@ jspm_packages
 lib
 demo/public/bundle.js
 demo/public/bundle.js.map
+graphiql/build

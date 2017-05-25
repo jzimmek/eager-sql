@@ -10,21 +10,8 @@ import fetch from 'isomorphic-fetch'
 
 
 const defaultQuery = `query q1 {
-  person(id:"1") {
+  people {
     id
-    allFriends(first:2) {
-      pageInfo {
-        hasNextPage
-        hasPreviousPage
-      }
-      edges {
-        cursor
-        node {
-          id
-          name
-        }
-      }
-    }
 	}
 }
 `

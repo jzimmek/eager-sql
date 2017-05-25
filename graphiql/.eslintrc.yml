@@ -1,13 +1,15 @@
 env:
-  browser: false
+  browser: true
   es6: true
 extends: 'eslint:recommended'
 parserOptions:
   ecmaVersion: 8
   ecmaFeatures:
     experimentalObjectRestSpread: true
-    jsx: false
+    jsx: true
   sourceType: module
+plugins:
+  - react
 rules:
   strict: 0
   linebreak-style:
@@ -16,6 +18,10 @@ rules:
   semi:
     - error
     - never
+  react/jsx-uses-vars:
+    - error
+  react/jsx-uses-react:
+    - error
   no-console:
     - 0
   no-unused-vars: [2, {"argsIgnorePattern": "^_"}]

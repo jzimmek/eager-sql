@@ -36,7 +36,7 @@ const db = knex({
 
 const app = express()
 
-app.use(express.static(path.resolve(__dirname, "..", "..", "graphiql", "build")))
+app.use(express.static(path.resolve(__dirname, "..", "node_modules", "graphql-pg", "graphiql", "build")))
 
 app.use(compression())
 app.use(bodyParser.json({limit: "5000kb"}))
@@ -55,7 +55,7 @@ app.use("/graphql", graphqlExpress(async (req, res) => {
           {query, variables} = req.body,
           rootValue = await createRootResolve({db, schema, selects, schemaStr, contextValue, query, variables, log: (sql,params) => {
             res.setHeader('x-sql', encodeURIComponent(sql))
-            res.setHeader('x-sql-params', encodeURIComponent(JSON.stringify(params)))            
+            res.setHeader('x-sql-params', encodeURIComponent(JSON.stringify(params)))
           }})
 
 

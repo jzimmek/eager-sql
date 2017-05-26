@@ -1,7 +1,6 @@
 import pg from "pg"
 pg.types.setTypeParser(20, 'text', parseInt)
 
-import path from "path"
 import knex from "knex"
 import express from "express"
 
@@ -9,11 +8,9 @@ import compression from "compression"
 import bodyParser from 'body-parser'
 import cookieParser from "cookie-parser"
 
-import {graphqlExpress} from 'graphql-server-express'
-import createSchema, {selects, schemaStr} from "./createSchema"
+import graphqlHTTP from "express-graphql"
 
-// import {buildSchema} from  "graphql/utilities/buildASTSchema"
-// import {printSchema} from  "graphql/utilities/schemaPrinter"
+import createSchema, {selects, schemaStr} from "./createSchema"
 
 import {createRootResolve} from "graphql-pg"
 
@@ -36,7 +33,7 @@ const db = knex({
 
 const app = express()
 
-app.use(express.static(path.resolve(__dirname, "..", "node_modules", "graphql-pg", "graphiql", "build")))
+// app.use(express.static(path.resolve(__dirname, "..", "node_modules", "graphql-pg", "graphiql", "build")))
 
 app.use(compression())
 app.use(bodyParser.json({limit: "5000kb"}))
@@ -45,29 +42,53 @@ app.use(cookieParser())
 
 const schema = createSchema()
 
-app.use("/graphql", graphqlExpress(async (req, res) => {
+app.use('/graphql', graphqlHTTP(async (req, res, {query,variables}) => {
 
   try{
-
     const contextValue = {
             token: "$2a$10$rg3LtrgzYwe85x3466D7aOG9MDz3YKCcnFS08mzfcXDe3Yy1w/PWG"
           },
-          {query, variables} = req.body,
-          rootValue = await createRootResolve({db, schema, selects, schemaStr, contextValue, query, variables, log: (sql,params) => {
+          rootValue = query ? await createRootResolve({db, schema, selects, schemaStr, contextValue, query, variables, log: (sql,params) => {
             res.setHeader('x-sql', encodeURIComponent(sql))
             res.setHeader('x-sql-params', encodeURIComponent(JSON.stringify(params)))
-          }})
-
+          }}) : {}
 
     return {
       schema,
-      context: contextValue,
       rootValue,
+      context: contextValue,
+      graphiql: true
     }
+
   }catch(err){
-    console.error("ERR", err)
+    console.error("ERR",err)
   }
 }))
+
+
+// app.use("/graphql", graphqlExpress(async (req, res) => {
+//
+//   try{
+//
+//     const contextValue = {
+//             token: "$2a$10$rg3LtrgzYwe85x3466D7aOG9MDz3YKCcnFS08mzfcXDe3Yy1w/PWG"
+//           },
+//           {query, variables} = req.body,
+//           rootValue = await createRootResolve({db, schema, selects, schemaStr, contextValue, query, variables, log: (sql,params) => {
+//             res.setHeader('x-sql', encodeURIComponent(sql))
+//             res.setHeader('x-sql-params', encodeURIComponent(JSON.stringify(params)))
+//           }})
+//
+//
+//     return {
+//       schema,
+//       context: contextValue,
+//       rootValue,
+//     }
+//   }catch(err){
+//     console.error("ERR", err)
+//   }
+// }))
 
 app.listen(process.env.PORT)
 

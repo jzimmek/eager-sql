@@ -1,49 +1,11 @@
 import {Buffer} from "buffer"
 import gql from "graphql-tag"
 import {getVariableValues,getArgumentValues} from "graphql/execution/values"
-import {isCompositeType} from "graphql/type/definition"
+import {isCompositeType,isLeafType,getNullableType,getNamedType,GraphQLObjectType,GraphQLList} from "graphql/type/definition"
 
 import merge, {SPLIT} from "./merge"
 
-function isNonNull(fieldDefinition){
-  return fieldDefinition.type.kind === "NonNullType"
-}
-
-function isList(fieldDefinition){
-  return (isNonNull(fieldDefinition) ? fieldDefinition.type : fieldDefinition).type.kind === "ListType"
-}
-
-function isObject(fieldDefinition, schema){
-  if(isList(fieldDefinition))
-    return false
-
-  const {type} = isNonNull(fieldDefinition) ? fieldDefinition.type : fieldDefinition
-
-  const x = schema.definitions.find(e => e.name.value === type.name.value)
-
-  return !!x && x.kind === "ObjectTypeDefinition"
-}
-
-function isUnion(fieldDefinition, schema){
-  if(isList(fieldDefinition))
-    return false
-
-  const {type} = isNonNull(fieldDefinition) ? fieldDefinition.type : fieldDefinition
-
-  const x = schema.definitions.find(e => e.name.value === type.name.value)
-
-  return !!x && x.kind === "UnionTypeDefinition"
-}
-
-function isScalar(fieldDefinition, schema){
-  return !isList(fieldDefinition) && !isObject(fieldDefinition, schema) && !isUnion(fieldDefinition, schema)
-}
-
-function unwrapType(fieldDefinition){
-  return fieldDefinition.type ? unwrapType(fieldDefinition.type) : fieldDefinition
-}
-
-function selectionInfo({typeAst, typeName, selection, schemaAst, idx=""}){
+function selectionInfo({typeAst, typeName, selection, idx=""}){
   const fieldDefinitionAst = typeAst.fields.find(e => e.name.value === selection.name.value)
 
   if(!fieldDefinitionAst)
@@ -59,24 +21,14 @@ function selectionInfo({typeAst, typeName, selection, schemaAst, idx=""}){
     columnNameAs,
     fieldDefinitionAst,
     selection,
-    isUnion: isUnion(fieldDefinitionAst, schemaAst),
-    isScalar: isScalar(fieldDefinitionAst, schemaAst),
-    isList: isList(fieldDefinitionAst),
-    isObject: isObject(fieldDefinitionAst, schemaAst),
-    type: unwrapType(fieldDefinitionAst).name.value,
     columnDirective: fieldDefinitionAst.directives.find(e => e.name.value === "column"),
   }
 }
 
 function getArgs({transpileInfo: ti, selectionInfo: si}){
-  const variableValues = getVariableValues(ti.schema, ti.queryDefinitionsAst[0], ti.variableValues)
-
-  // console.info("/////", JSON.stringify(variableValues, null, 2), JSON.stringify(ti.variableValues, null, 2))
-  //
-  // console.info("=======", JSON.stringify(si.selection,null,2))
-  // console.info("=======2", JSON.stringify(ti.schema.getType(ti.typeName).getFields()[si.selection.name.value],null,2))
-
-  const argumentValues = getArgumentValues(ti.schema.getType(ti.typeName).getFields()[si.selection.name.value], si.selection, ti.variableValues)
+  const variableValues = getVariableValues(ti.schema, ti.queryDefinitionsAst[0], ti.variableValues),
+        field = ti.schema.getType(ti.typeName).getFields()[si.selection.name.value],
+        argumentValues = getArgumentValues(field, si.selection, ti.variableValues)
 
   return {...variableValues, ...argumentValues}
 }
@@ -101,9 +53,13 @@ function transpileScalar({transpileInfo: ti, selectionInfo: si}){
 }
 
 function transpileInJsonFunc({transpileInfo: ti, selectionInfo: si}, inner){
-  const json_func = si.isObject ? "to_json" : "json_agg"
+  const {typeName} = ti,
+        field = ti.schema.getType(typeName).getFields()[si.selection.name.value],
+        isObject = getNullableType(field.type) instanceof GraphQLObjectType,
+        isList = getNullableType(field.type) instanceof GraphQLList,
+        json_func = isObject ? "to_json" : (isList ? "json_agg" : new Error("neither list nor object type"))
 
-  if(ti.typeName === "Query" || ti.typeName === "Mutation"){
+  if(typeName === "Query" || typeName === "Mutation"){
     return {
       sql: [
         `(select ${json_func}(y) from (`,
@@ -120,20 +76,24 @@ function transpileInJsonFunc({transpileInfo: ti, selectionInfo: si}, inner){
         `) as x) as "${si.columnNameAs}" on true`
       ],
       sql: [
-        ...(si.isObject ? [`"${si.columnNameAs}".${json_func} as "${si.columnNameAs}"`] : []),
-        ...(si.isList ? [`coalesce("${si.columnNameAs}".${json_func}, '[]') as "${si.columnNameAs}"`] : []),
+        ...(isObject ? [`"${si.columnNameAs}".${json_func} as "${si.columnNameAs}"`] : []),
+        ...(isList ? [`coalesce("${si.columnNameAs}".${json_func}, '[]') as "${si.columnNameAs}"`] : []),
       ]
     }
   }
 }
 
 function transpileObjectAndList({transpileInfo: ti, selectionInfo: si}){
+
+  const field = ti.schema.getType(ti.typeName).getFields()[si.selection.name.value],
+        isObject = getNullableType(field.type) instanceof GraphQLObjectType
+
   const contextValue = {...ti.contextValue, table: `"${ti.table}"`},
         select = ti.selects[ti.typeName] && ti.selects[ti.typeName][si.selection.name.value],
         sqlParts = select ? select(
           getArgs({transpileInfo: ti, selectionInfo: si}),
           contextValue
-        ) : (si.isObject ? null : [])
+        ) : (isObject ? null : [])
 
   // TODO: handle non sql (!select) properly
 
@@ -141,7 +101,7 @@ function transpileObjectAndList({transpileInfo: ti, selectionInfo: si}){
     const inner = transpile({
       ...ti,
       queryAst: si.selection,
-      typeName: si.type,
+      typeName: getNamedType(field.type).name,
       table: si.columnNameAs,
       from: [
         sqlParts[0],
@@ -167,7 +127,7 @@ function transpileObjectAndList({transpileInfo: ti, selectionInfo: si}){
 
       // union
 
-      const jsonFunc = si.isUnion ? "to_json" : "json_agg"
+      const jsonFunc = getNullableType(field.type) instanceof GraphQLList ? "json_agg" : "to_json"
 
       let inner = Object.keys(sqlParts.types).reduce((memo,typeName,idx,arr) => {
 
@@ -206,13 +166,16 @@ function transpileObjectAndList({transpileInfo: ti, selectionInfo: si}){
 }
 
 function transpileSelection({transpileInfo:ti,selectionInfo:si}){
-  if((ti.typeName==="Query" || ti.typeName==="Mutation") && si.isScalar){
+  const field = ti.schema.getType(ti.typeName).getFields()[si.selection.name.value],
+        isLeaf = isLeafType(getNamedType(field.type))
+
+  if((ti.typeName==="Query" || ti.typeName==="Mutation") && isLeaf){
     throw new Error(`scalar: ${si.selection.name.value} not supported on type: ${ti.typeName}`)
   }
 
-  if(si.isScalar){
+  if(isLeaf){
     return transpileScalar({transpileInfo: ti, selectionInfo: si})
-  }else if(si.isObject||si.isList||si.isUnion){
+  }else if(isCompositeType(getNamedType(field.type))){
     return transpileObjectAndList({transpileInfo: ti, selectionInfo: si})
   }
 }
@@ -223,7 +186,7 @@ function onlyNonSchemaSelections(){
   }
 }
 
-function onlySelectionsForSqlFields(selects, typeAst, typeName, schemaAst){
+function onlySelectionsForSqlFields(selects, typeAst, typeName, schema){
   return (selection) => {
     if(selection.kind === "Field"){
 
@@ -233,9 +196,11 @@ function onlySelectionsForSqlFields(selects, typeAst, typeName, schemaAst){
       if(selects[typeName] && selects[typeName][selection.name.value])
         return true
 
-      const si = selectionInfo({typeAst,typeName,selection,schemaAst})
+      const si = selectionInfo({typeAst,typeName,selection})
 
-      if(["ID","String","Int","Boolean","Float"].includes(si.type))
+      const field = schema.getType(typeName).getFields()[selection.name.value]
+
+      if(isLeafType(getNamedType(field.type)))
         return !!si.columnDirective
     }
 
@@ -261,7 +226,7 @@ function appendSelectionForIdField(typeName){
   }
 }
 
-function transpileFragmentSelections(selections, typeName, typeAst, schemaAst, idx, transpileInfo){
+function transpileFragmentSelections(selections, typeName, typeAst, idx, transpileInfo){
   let sql = [],
       joins = []
 
@@ -277,13 +242,13 @@ function transpileFragmentSelections(selections, typeName, typeAst, schemaAst, i
             .queryDefinitionsAst
             .find(e => e.kind === "FragmentDefinition" && e.name.value === selection2.name.value)
 
-      const {sql:sql2,joins:joins2} = transpileFragmentSelections(selections3, typeName, typeAst, schemaAst, idx, transpileInfo)
+      const {sql:sql2,joins:joins2} = transpileFragmentSelections(selections3, typeName, typeAst, idx, transpileInfo)
 
       sql = [...sql, ...sql2]
       joins = [...joins, ...joins2]
 
     }else{
-      const si = selectionInfo({typeAst,typeName,selection:selection2,schemaAst,idx:`${idx}`}),
+      const si = selectionInfo({typeAst,typeName,selection:selection2,idx:`${idx}`}),
             {sql:sql2,joins:joins2} = transpileSelection({transpileInfo, selectionInfo: si})
 
       sql = [...sql, ...sql2]
@@ -314,7 +279,7 @@ function onlyMatchingFragmentTypsConditions(typeName, queryDefinitionsAst){
 }
 
 function transpile(transpileInfo){
-  const {selects, queryAst, queryDefinitionsAst, schemaAst, typeName, from, table} = transpileInfo,
+  const {selects, schema, queryAst, queryDefinitionsAst, schemaAst, typeName, from, table} = transpileInfo,
         {selectionSet} = queryAst,
         typeAst = schemaAst.definitions.find(e => e.kind === "ObjectTypeDefinition" && e.name.value === typeName)
 
@@ -326,7 +291,7 @@ function transpile(transpileInfo){
     .reduce(appendSelectionForIdField(typeName), [])
     .filter(onlyNonSchemaSelections())
     .filter(onlyMatchingFragmentTypsConditions(typeName, queryDefinitionsAst))
-    .filter(onlySelectionsForSqlFields(selects, typeAst, typeName, schemaAst))
+    .filter(onlySelectionsForSqlFields(selects, typeAst, typeName, schema))
 
   if(!selections.length)
     return []
@@ -334,12 +299,12 @@ function transpile(transpileInfo){
   selections.forEach((selection,idx,arr) => {
     if(selection.kind === "FragmentSpread"){
       const fragmentAst = queryDefinitionsAst.find(e => e.kind === "FragmentDefinition" && e.name.value === selection.name.value),
-            {sql:sql2,joins:joins2} = transpileFragmentSelections(fragmentAst.selectionSet.selections, typeName, typeAst, schemaAst, idx, transpileInfo)
+            {sql:sql2,joins:joins2} = transpileFragmentSelections(fragmentAst.selectionSet.selections, typeName, typeAst, idx, transpileInfo)
 
       sql = [...sql, ...sql2]
       joins = [...joins, ...joins2]
     }else if(selection.kind === "InlineFragment") {
-      const {sql:sql2,joins:joins2} = transpileFragmentSelections(selection.selectionSet.selections, typeName, typeAst, schemaAst, idx, transpileInfo)
+      const {sql:sql2,joins:joins2} = transpileFragmentSelections(selection.selectionSet.selections, typeName, typeAst, idx, transpileInfo)
 
       sql = [...sql, ...sql2]
       joins = [...joins, ...joins2]
@@ -350,7 +315,7 @@ function transpile(transpileInfo){
         sql = [...sql, `'${typeName}' as "__typename"`]
       }else{
 
-        const si = selectionInfo({typeAst,typeName,selection:selection2,schemaAst}),
+        const si = selectionInfo({typeAst,typeName,selection:selection2}),
               {sql:sql2,joins:joins2} = transpileSelection({transpileInfo, selectionInfo: si})
 
         sql = [...sql, ...sql2]

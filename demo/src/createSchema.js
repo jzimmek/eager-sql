@@ -55,8 +55,8 @@ export const schemaStr = `
 
 
   type Todo {
-    id: ID!  @column
-    name: String!  @column
+    id: ID! @column
+    name: String! @column
   }
 
   type TodoConnection {
@@ -70,8 +70,8 @@ export const schemaStr = `
   }
 
   type PageInfo {
-    hasNextPage: Boolean!
-    hasPreviousPage: Boolean!
+    hasNextPage: Boolean! @column
+    hasPreviousPage: Boolean! @column
   }
 
   input TodoConnectionInput {
@@ -83,7 +83,7 @@ export const schemaStr = `
 
   type Query {
     people: [Person]!
-    events: [Event]!
+    events: [Event]
     feedItems: [FeedItem]!
     pets: [Pet]!
     todos(input: TodoConnectionInput): TodoConnection!
@@ -165,23 +165,21 @@ export default () => {
         }
       },
       Query: {
-        // pets(){
-        //   return [
-        //     {id: "1", type: "Cat", name: "cat1"},
-        //     {id: "2", type: "Dog", name: "dog2"},
-        //   ]
-        // },
-      //   feedItems(){
-      //     return [
-      //       {id: 1, type: "Person", name: "joe"},
-      //       {id: 2, type: "Event", location: "blub"},
-      //     ]
-      //   }
+        pets(){
+          return [
+            {id: "1", type: "Cat", name: "cat1"},
+            {id: "2", type: "Dog", name: "dog2"},
+          ]
+        },
+        feedItems(){
+          return [
+            {id: 1, type: "Person", name: "joe"},
+            {id: 2, type: "Event", location: "blub"},
+          ]
+        }
       },
       Mutation: {
         sayHello({sqlResolve}, {input:{name}}, _ctx, _info){
-          // console.info("info", JSON.stringify(info,null,2))
-
           console.info(`hello ${name}`)
           return sqlResolve()
         }

@@ -1,7 +1,13 @@
 import {Buffer} from "buffer"
 import gql from "graphql-tag"
-import {getVariableValues,getArgumentValues} from "graphql/execution/values"
-import {isCompositeType,isLeafType,getNullableType,getNamedType,GraphQLObjectType,GraphQLList} from "graphql/type/definition"
+// import {GraphQLObjectType,GraphQLList} from "graphql"
+// import {getVariableValues,getArgumentValues} from "graphql/execution/values"
+// import {isCompositeType,isLeafType,getNullableType,getNamedType} from "graphql/type/definition"
+
+const {GraphQLObjectType,GraphQLList} = require("graphql")
+const {getVariableValues,getArgumentValues} = require("graphql/execution/values")
+const {isCompositeType,isLeafType,getNullableType,getNamedType} = require("graphql/type/definition")
+
 
 import merge, {SPLIT} from "./merge"
 
@@ -27,8 +33,10 @@ function selectionInfo({typeAst, typeName, selection, idx=""}){
 
 function getArgs({transpileInfo: ti, selectionInfo: si}){
   const variableValues = getVariableValues(ti.schema, ti.queryDefinitionsAst[0], ti.variableValues),
-        field = ti.schema.getType(ti.typeName).getFields()[si.selection.name.value],
-        argumentValues = getArgumentValues(field, si.selection, ti.variableValues)
+        field = ti.schema.getType(ti.typeName).getFields()[si.selection.name.value]
+
+
+  const argumentValues = getArgumentValues(field, si.selection, ti.variableValues)
 
   return {...variableValues, ...argumentValues}
 }
@@ -178,6 +186,8 @@ function transpileSelection({transpileInfo:ti,selectionInfo:si}){
   }else if(isCompositeType(getNamedType(field.type))){
     return transpileObjectAndList({transpileInfo: ti, selectionInfo: si})
   }
+
+  return {sql: [], joins: []}
 }
 
 function onlyNonSchemaSelections(){
@@ -401,6 +411,9 @@ function aliasAwareResolve(origResolve){
 export function makeResolverAliasAware(schema){
   Object.keys(schema.getTypeMap()).forEach(typeName => {
     const type = schema.getType(typeName)
+
+    if(typeName.match(/^__/))
+      return
 
     if(isCompositeType(type) && type.getFields){
       Object.keys(type.getFields()).forEach(fieldName => {

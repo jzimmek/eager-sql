@@ -1,8 +1,6 @@
 import React, {Component} from "react"
 import {render} from "react-dom"
 import sqlFormatter from "sql-formatter"
-
-
 import GraphiQL from 'graphiql'
 import "graphiql/graphiql.css"
 

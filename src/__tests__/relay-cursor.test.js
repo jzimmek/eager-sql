@@ -201,24 +201,24 @@ describe("relay-cursor", () => {
       "people": {
         edges: [
           {
-            cursor: "Wzk4XQ==",
+            cursor: "Wzhd",
             node: {
-              "id": "98",
-              "name": "name98"
+              "id": "8",
+              "name": "name8"
             }
           },
           {
-            cursor: "Wzk5XQ==",
+            cursor: "Wzld",
             node: {
-              "id": "99",
-              "name": "name99"
+              "id": "9",
+              "name": "name9"
             }
           },
           {
-            cursor: "WzEwMF0=",
+            cursor: "WzEwXQ==",
             node: {
-              "id": "100",
-              "name": "name100"
+              "id": "10",
+              "name": "name10"
             }
           }
         ]

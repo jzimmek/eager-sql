@@ -59,7 +59,7 @@ describe("relay-cursor", () => {
                 p.*,
                 row_number() over (order by p.id asc) as "$row_number",
                 json_build_array(p.id) as "$cursor"
-              from people p
+              from test_people p
               where
                 coalesce(p.id > cast(${after} as integer), true)
                 and coalesce(p.id < cast(${before} as integer), true)

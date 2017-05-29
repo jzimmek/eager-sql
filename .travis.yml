@@ -1,0 +1,11 @@
+language: node_js
+node_js:
+  - "7"
+services:
+  - postgresql
+addons:
+  postgresql: "9.6"
+env:
+  - DATABASE_URL=postgres://postgres:@localhost:5432/myapp_test
+script:
+  - node_modules/.bin/jest --config ./src/__tests__/config.json --resetModules --forceExit --runInBand

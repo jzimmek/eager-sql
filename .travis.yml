@@ -3,9 +3,13 @@ node_js:
   - "7"
 services:
   - postgresql
+dist: trusty
+sudo: required
 addons:
   postgresql: "9.6"
 env:
-  - DATABASE_URL=postgres://postgres:@localhost:5432/myapp_test
+  - DATABASE_URL=postgres://postgres:@localhost:5432/graphql_pg_test
 script:
   - node_modules/.bin/jest --config ./src/__tests__/config.json --resetModules --forceExit --runInBand
+before_script:
+  - psql -c 'create database graphql_pg_test;' -U postgres

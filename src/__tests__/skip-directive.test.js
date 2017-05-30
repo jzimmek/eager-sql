@@ -2,7 +2,7 @@ import {connectDb,runQuery} from "./helper"
 
 const db = connectDb()
 
-describe("scalar", () => {
+describe("skip-directive", () => {
 
   const opts = {
     dbClean: `

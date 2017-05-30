@@ -2,7 +2,7 @@ import {connectDb,runQuery} from "./helper"
 
 const db = connectDb()
 
-describe("has one", () => {
+describe("object", () => {
 
   const opts = {
     dbClean: `

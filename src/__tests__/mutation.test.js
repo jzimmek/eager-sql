@@ -19,8 +19,8 @@ describe("mutation", () => {
     `,
     graphqlSchema: `
       type Person {
-        id: ID! @column
-        name: String! @column
+        id: ID!
+        name: String!
       }
       type Mutation {
         sayHello: Person

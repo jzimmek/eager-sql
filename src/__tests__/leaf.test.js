@@ -19,8 +19,8 @@ describe("scalar", () => {
     `,
     graphqlSchema: `
       type Person {
-        id: ID! @column
-        name: String! @column
+        id: ID!
+        name: String!
         avatarUrl(size: String!): String!
       }
       type Query {

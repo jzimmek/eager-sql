@@ -33,12 +33,12 @@ describe("interface", () => {
         name: String!
       }
       type Cat implements Pet {
-        id: ID! @column
-        name: String! @column
+        id: ID!
+        name: String!
       }
       type Dog implements Pet {
-        id: ID! @column
-        name: String! @column
+        id: ID!
+        name: String!
       }
       type Query {
         pets: [Pet]!

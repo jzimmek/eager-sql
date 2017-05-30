@@ -20,8 +20,8 @@ describe("has one", () => {
     `,
     graphqlSchema: `
       type Person {
-        id: ID! @column
-        name: String! @column
+        id: ID!
+        name: String!
         bestFriend: Person
       }
       type Query {

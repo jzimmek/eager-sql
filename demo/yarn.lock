@@ -1727,6 +1727,10 @@ graceful-fs@^4.1.2, graceful-fs@^4.1.4:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/graceful-readlink/-/graceful-readlink-1.0.1.tgz#4cafad76bc62f02fa039b2f94e9a3dd3a391a725"
 
+graphql-pg@../graphql-pg-v1.0.17.tgz:
+  version "1.0.17"
+  resolved "../graphql-pg-v1.0.17.tgz#57508370c813cab0cf035c403c0f076e7668bc2c"
+
 graphql-pg@^1.0.16:
   version "1.0.16"
   resolved "https://registry.yarnpkg.com/graphql-pg/-/graphql-pg-1.0.16.tgz#6b735d8252fc10615454188dc302d29eae4a2fdf"

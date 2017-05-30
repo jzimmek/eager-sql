@@ -30,12 +30,12 @@ describe("union", () => {
     `,
     graphqlSchema: `
       type Person {
-        id: ID! @column
-        name: String! @column
+        id: ID!
+        name: String!
       }
       type Event {
-        id: ID! @column
-        location: String! @column
+        id: ID!
+        location: String!
       }
       union FeedItem = Person | Event
       type Query {

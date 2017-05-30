@@ -1,13 +1,8 @@
 import {Buffer} from "buffer"
 import gql from "graphql-tag"
-// import {GraphQLObjectType,GraphQLList} from "graphql"
-// import {getVariableValues,getArgumentValues} from "graphql/execution/values"
-// import {isCompositeType,isLeafType,getNullableType,getNamedType} from "graphql/type/definition"
-
-const {GraphQLObjectType,GraphQLList} = require("graphql")
-const {getVariableValues,getArgumentValues} = require("graphql/execution/values")
-const {isCompositeType,isLeafType,getNullableType,getNamedType} = require("graphql/type/definition")
-
+import {GraphQLObjectType,GraphQLList} from "graphql"
+import {getVariableValues,getArgumentValues} from "graphql/execution/values"
+import {isCompositeType,isLeafType,getNullableType,getNamedType} from "graphql/type/definition"
 
 import merge, {SPLIT} from "./merge"
 
@@ -17,26 +12,21 @@ function selectionInfo({typeAst, typeName, selection, idx=""}){
   if(!fieldDefinitionAst)
     throw new Error(`field not found: ${selection.name.value} on type: ${typeName}`)
 
-  const columnDirective = fieldDefinitionAst.directives.find(e => e.name.value === "column"),
-        columnDirectiveName = columnDirective ? (columnDirective.arguments.find(e => e.name.value === "name")||{value:{}}).value.value : null,
-        columnName = columnDirectiveName ? columnDirectiveName : selection.name.value,
-        columnNameAs = (selection.alias ? selection.alias.value : selection.name.value) + (idx ? `${SPLIT}${idx}` : "")
+  const columnName = selection.name.value,
+        columnNameAs = (selection.alias ? selection.alias.value : columnName) + (idx ? `${SPLIT}${idx}` : "")
 
   return {
     columnName,
     columnNameAs,
     fieldDefinitionAst,
     selection,
-    columnDirective: fieldDefinitionAst.directives.find(e => e.name.value === "column"),
   }
 }
 
 function getArgs({transpileInfo: ti, selectionInfo: si}){
   const variableValues = getVariableValues(ti.schema, ti.queryDefinitionsAst[0], ti.variableValues),
-        field = ti.schema.getType(ti.typeName).getFields()[si.selection.name.value]
-
-
-  const argumentValues = getArgumentValues(field, si.selection, ti.variableValues)
+        field = ti.schema.getType(ti.typeName).getFields()[si.selection.name.value],
+        argumentValues = getArgumentValues(field, si.selection, ti.variableValues)
 
   return {...variableValues, ...argumentValues}
 }
@@ -206,16 +196,21 @@ function onlySelectionsForSqlFields(selects, typeAst, typeName, schema){
       if(selects[typeName] && selects[typeName][selection.name.value])
         return true
 
-      const si = selectionInfo({typeAst,typeName,selection})
-
       const field = schema.getType(typeName).getFields()[selection.name.value]
 
       if(isLeafType(getNamedType(field.type)))
-        return !!si.columnDirective
+        return isSqlField(selects, typeName, field.name)
     }
 
     return true
   }
+}
+
+function isSqlField(selects, typeName, fieldName){
+  if(!selects.hasOwnProperty(typeName) || !selects[typeName].hasOwnProperty(fieldName))
+    return true
+
+  return !!selects[typeName][fieldName]
 }
 
 function appendSelectionForIdField(typeName){

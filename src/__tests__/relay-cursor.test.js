@@ -20,8 +20,8 @@ describe("relay-cursor", () => {
     `,
     graphqlSchema: `
       type Person {
-        id: ID! @column
-        name: String! @column
+        id: ID!
+        name: String!
       }
 
       type PersonConnection {

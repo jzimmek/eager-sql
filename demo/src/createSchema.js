@@ -2,25 +2,21 @@ import {makeExecutableSchema} from 'graphql-tools'
 import {makeResolverAliasAware,sql,cursor} from "graphql-pg"
 
 export const schemaStr = `
-  directive @column (
-    name: String!
-  ) on FIELD_DEFINITION
-
   enum PersonStatus {
     GOOD
     BAD
   }
 
   type Person {
-    id: ID! @column
-    name: String! @column
-    status: PersonStatus @column
+    id: ID!
+    namel: String!
+    status: PersonStatus
     friends: [Person]!
   }
 
   type Event {
-    id: ID! @column
-    location: String! @column
+    id: ID!
+    location: String!
   }
 
   union FeedItem = Person | Event
@@ -34,29 +30,18 @@ export const schemaStr = `
   }
 
   type Cat implements Pet {
-    id: ID! @column
-    name: String! @column
+    id: ID!
+    name: String!
   }
 
   type Dog implements Pet, PetWithId {
-    id: ID! @column
-    name: String! @column
+    id: ID!
+    name: String!
   }
 
-
-
-
-
-
-
-
-
-
-
-
   type Todo {
-    id: ID! @column
-    name: String! @column
+    id: ID!
+    name: String!
   }
 
   type TodoConnection {
@@ -65,13 +50,13 @@ export const schemaStr = `
   }
 
   type TodoEdge {
-    cursor: String! @column
+    cursor: String!
     node: Todo
   }
 
   type PageInfo {
-    hasNextPage: Boolean! @column
-    hasPreviousPage: Boolean! @column
+    hasNextPage: Boolean!
+    hasPreviousPage: Boolean!
   }
 
   input TodoConnectionInput {
@@ -100,6 +85,7 @@ export const schemaStr = `
 
 export const selects = {
   Person: {
+    namel: (_args, _ctx) => [`name`],
     friends(_args, {table}){
       return [`select p.* from friends f join people p on p.id = f.friend_id where f.person_id = ${table}.id`]
     }

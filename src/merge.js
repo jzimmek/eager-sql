@@ -1,8 +1,6 @@
-// @flow
-
 export const SPLIT = "$$"
 
-const merge = (a:any={}, b:any={}) => {
+const merge = (a={}, b={}) => {
 
   const mergeArr = (arrA, arrB) => {
     let res = [...arrA]

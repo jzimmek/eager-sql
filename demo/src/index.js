@@ -53,14 +53,23 @@ app.use('/graphql', graphqlHTTP(async (req, res, {query,variables}) => {
       token: "$2a$10$rg3LtrgzYwe85x3466D7aOG9MDz3YKCcnFS08mzfcXDe3Yy1w/PWG"
     }
 
-
-    let rootValue
+    let rootValue = null
 
     if(query){
-      rootValue = await createRootResolve({db, schema, selects, schemaStr, contextValue, query, variables, log: (sql,params) => {
-        res.setHeader('x-sql', encodeURIComponent(sql))
-        res.setHeader('x-sql-params', encodeURIComponent(JSON.stringify(params)))
-      }})
+      rootValue = await createRootResolve({
+        db,
+        schema,
+        selects,
+        schemaStr,
+        contextValue,
+        query,
+        variables,
+        dbMerge: true,
+        log: (sql,params) => {
+          res.setHeader('x-sql', encodeURIComponent(sql))
+          res.setHeader('x-sql-params', encodeURIComponent(JSON.stringify(params)))
+        }
+      })
     }
 
 

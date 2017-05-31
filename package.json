@@ -13,7 +13,7 @@
   "scripts": {
     "clean": "rm -rf lib",
     "build": "node_modules/.bin/babel src -d lib",
-    "test": "DATABASE_URL=postgres://`whoami`:@localhost:5432/`whoami` node_modules/.bin/jest --config ./src/__tests__/config.json --resetModules --forceExit --runInBand",
+    "test": "cat src/merge.sql | psql -U `whoami` `whoami` && DATABASE_URL=postgres://`whoami`:@localhost:5432/`whoami` node_modules/.bin/jest --config ./src/__tests__/config.json --resetModules --forceExit --runInBand",
     "schema": "pushd demo && npm run schema; popd",
     "demo": "pushd demo && npm start; popd",
     "deploy": "git subtree push --prefix demo heroku master"

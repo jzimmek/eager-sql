@@ -352,7 +352,7 @@ function toExecutableSqlAndParams(sqlArr){
   return {sql,params}
 }
 
-function sqlResolve({db, schema, selects, schemaStr, queryStr, contextValue={}, variables={}, log}){
+function sqlResolve({db, schema, selects, schemaStr, queryStr, contextValue={}, variables={}, log, dbMerge}){
 
   return (typeName) => {
     const info = gql`${queryStr}`
@@ -371,7 +371,10 @@ function sqlResolve({db, schema, selects, schemaStr, queryStr, contextValue={}, 
     if(!sqlArr.length)
       return {}
 
-    const {sql,params} = toExecutableSqlAndParams(sqlArr)
+    let {sql,params} = toExecutableSqlAndParams(sqlArr)
+
+    if(dbMerge)
+      sql = `select graphql_pg_merge(to_json(t)::jsonb) as to_json from (${sql}) t`
 
     if(log)
       log(sql, params)
@@ -380,10 +383,17 @@ function sqlResolve({db, schema, selects, schemaStr, queryStr, contextValue={}, 
     // console.info(">>>>>>>>> params >>>>>>\n", params)
 
     return db.raw(sql, params).then(({rows}) => {
-      const res = (typeName === "Mutation") ? rows[0][info.definitions[0].selectionSet.selections[0].name.value] : rows[0],
-            mergedRes = Array.isArray(res) ? merge({entries:res}, {entries:res}).entries : merge(res, res)
+      const [row] = rows,
+            mutationResultKey = info.definitions[0].selectionSet.selections[0].name.value,
+            res = (typeName === "Mutation") ? (dbMerge ? {to_json: row.to_json[mutationResultKey]} : row[mutationResultKey]) : row
 
-      // console.info("==== unmerged ======\n", JSON.stringify(res,null,2))
+      // console.info("==== raw ======\n", JSON.stringify(res,null,2))
+
+      if(dbMerge)
+        return res.to_json
+
+      const mergedRes = Array.isArray(res) ? merge({entries:res}, {entries:res}).entries : merge(res, res)
+
       // console.info("==== merged ======\n", JSON.stringify(mergedRes,null,2))
 
       return mergedRes
@@ -419,10 +429,10 @@ export function makeResolverAliasAware(schema){
   })
 }
 
-export function createRootResolve({db, schema, selects, schemaStr, contextValue, query, variables, log}){
+export function createRootResolve({db, schema, selects, schemaStr, contextValue, query, variables, log, dbMerge}){
   const clientAst = gql`${query}`,
         {definitions:[{operation}]} = clientAst,
-        resolve = sqlResolve({db, schema, selects, schemaStr, queryStr: clientAst, contextValue, variables, log})
+        resolve = sqlResolve({db, schema, selects, schemaStr, queryStr: clientAst, contextValue, variables, log, dbMerge})
 
   return (operation === "mutation") ? Promise.resolve(({sqlResolve: () => resolve("Mutation")})) : resolve("Query")
 }

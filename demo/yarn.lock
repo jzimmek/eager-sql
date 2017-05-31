@@ -1727,13 +1727,13 @@ graceful-fs@^4.1.2, graceful-fs@^4.1.4:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/graceful-readlink/-/graceful-readlink-1.0.1.tgz#4cafad76bc62f02fa039b2f94e9a3dd3a391a725"
 
-graphql-pg@../graphql-pg-v1.0.17.tgz:
+graphql-pg@./graphql-pg-1496239925.tgz:
   version "1.0.17"
-  resolved "../graphql-pg-v1.0.17.tgz#57508370c813cab0cf035c403c0f076e7668bc2c"
+  resolved "./graphql-pg-1496239925.tgz#c47e463d0a10539c2bf47c20a1afce6adcc470ba"
 
-graphql-pg@^1.0.16:
-  version "1.0.16"
-  resolved "https://registry.yarnpkg.com/graphql-pg/-/graphql-pg-1.0.16.tgz#6b735d8252fc10615454188dc302d29eae4a2fdf"
+graphql-pg@./graphql-pg-1496240940.tgz:
+  version "1.0.17"
+  resolved "./graphql-pg-1496240940.tgz#35c938d7a558463291312bc5251e7fea123b709e"
 
 graphql-tag@^2.2.0:
   version "2.2.0"

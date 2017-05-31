@@ -35,6 +35,7 @@ export async function runQuery(db, opts, {query,variables={}}){
     await db.raw(`
       begin;
       create extension if not exists "pgcrypto";
+      create extension if not exists "plv8";
       ${dbClean}
       ${dbSchema}
       commit;
@@ -42,7 +43,7 @@ export async function runQuery(db, opts, {query,variables={}}){
 
     gql.resetCaches()
 
-    const rootValue = await createRootResolve({db, schema, selects, schemaStr: graphqlSchema, contextValue, query, variables})
+    const rootValue = await createRootResolve({db, schema, selects, schemaStr: graphqlSchema, contextValue, query, variables, dbMerge: true})
 
     const res = await graphql(schema, query, rootValue, contextValue, variables)
 
@@ -51,7 +52,7 @@ export async function runQuery(db, opts, {query,variables={}}){
 
     if(res.errors){
       console.error(res.errors)
-      throw new Error("graphql errors")
+      throw new Error(res.errors)
     }
 
     return res.data

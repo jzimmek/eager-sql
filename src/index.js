@@ -409,7 +409,7 @@ export function makeResolverAliasAware(schema){
   })
 }
 
-export function createRootResolve({db, schema, selects, contextValue, query, variables, log, dbMerge}){
+export function createRootResolve({db, schema, selects, contextValue={}, query, variables, log, dbMerge}){
   const clientAst = gql`${query}`,
         {definitions:[{operation}]} = clientAst,
         resolve = sqlResolve({db, schema, selects, queryStr: clientAst, contextValue, variables, log, dbMerge})

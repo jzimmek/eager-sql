@@ -143,7 +143,7 @@ function transpileObjectAndList({transpileInfo: ti, selectionInfo: si}){
 
         return [
           ...memo,
-          [`(select ('{"type":"${typeName}"}'::jsonb || to_json(x.*)::jsonb) as to_json from (`, inner2,`) as x)`],
+          [`(select (cast('{"type":"${typeName}"}' as jsonb) || cast(to_json(x.*) as jsonb)) as to_json from (`, inner2,`) as x)`],
           ...((idx < arr.length - 1) ? ["union all"] : [])
         ]
       }, [])
@@ -374,7 +374,7 @@ function sqlResolve({db, schema, selects, schemaStr, queryStr, contextValue={}, 
     let {sql,params} = toExecutableSqlAndParams(sqlArr)
 
     if(dbMerge)
-      sql = `select graphql_pg_merge(to_json(t)::jsonb) as to_json from (${sql}) t`
+      sql = `select graphql_pg_merge(cast(to_json(t) as jsonb)) as to_json from (${sql}) t`
 
     if(log)
       log(sql, params)

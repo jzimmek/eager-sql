@@ -7,18 +7,19 @@ import {printSchema} from "graphql/utilities/schemaPrinter"
 
 import merge, {SPLIT} from "./merge"
 
+function snakeCase(str){
+  return [...str].reduce((memo, c) => memo.concat(c === c.toUpperCase() ? `_${c.toLowerCase()}` : c), []).join("")
+}
+
 function selectionInfo({typeAst, typeName, selection, idx=""}){
   const fieldDefinitionAst = typeAst.fields.find(e => e.name.value === selection.name.value)
 
   if(!fieldDefinitionAst)
     throw new Error(`field not found: ${selection.name.value} on type: ${typeName}`)
 
-  const columnName = selection.name.value,
-        columnNameAs = (selection.alias ? selection.alias.value : columnName) + (idx ? `${SPLIT}${idx}` : "")
-
   return {
-    columnName,
-    columnNameAs,
+    columnName: selection.name.value === "__typename" ? selection.name.value : snakeCase(selection.name.value),
+    columnNameAs: (selection.alias ? selection.alias.value : selection.name.value) + (idx ? `${SPLIT}${idx}` : ""),
     fieldDefinitionAst,
     selection,
   }

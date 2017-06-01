@@ -113,15 +113,14 @@ function transpileObjectAndList({transpileInfo: ti, selectionInfo: si}){
   }else if(typeof(sqlParts) === "object"){
 
     if(sqlParts.kind === "cursor"){
-      return {
+      return append({
         sql: [
           `(select x.* from (`,
           sqlParts.sql[0],
           ...sqlParts.sql.slice(1).map(e => ({__param: e})),
           `) x) as "${si.columnNameAs}"`,
-        ],
-        joins: [],
-      }
+        ]
+      })
     }else{
 
       // union
@@ -152,10 +151,9 @@ function transpileObjectAndList({transpileInfo: ti, selectionInfo: si}){
       if(sqlParts.wrapper)
         inner = sqlParts.wrapper(inner)
 
-      return {
+      return append({
         sql: [`(select ${jsonFunc}(y.to_json) from (`,inner,`) as y) as "${si.columnNameAs}"`],
-        joins: [],
-      }
+      })
     }
 
 
@@ -178,7 +176,7 @@ function transpileSelection({transpileInfo:ti,selectionInfo:si}){
     return transpileObjectAndList({transpileInfo: ti, selectionInfo: si})
   }
 
-  return {sql: [], joins: []}
+  return append()
 }
 
 function onlyNonSchemaSelections(){
@@ -232,14 +230,19 @@ function appendSelectionForIdField(typeName){
   }
 }
 
+function append({sql=[],joins=[]}={}, {sql:sql2=[],joins:joins2=[]}={}){
+  return {
+    sql: [...sql, ...sql2],
+    joins: [...joins, ...joins2],
+  }
+}
+
 function transpileFragmentSelections(selections, typeName, typeAst, idx, transpileInfo){
-  let sql = [],
-      joins = []
+  let out = append()
 
   selections.forEach((selection2,idx2,arr2) => {
     if(selection2.kind === "Field" && selection2.name.value === "__typename"){
-      sql = [...sql, `'${typeName}' as "__typename"`]
-
+      out = append(out, {sql: [`'${typeName}' as "__typename"`]})
     }else if(["InlineFragment","FragmentSpread"].includes(selection2.kind)){
 
       const {selectionSet:{selections:selections3}} = (selection2.kind === "InlineFragment")
@@ -248,27 +251,18 @@ function transpileFragmentSelections(selections, typeName, typeAst, idx, transpi
             .queryDefinitionsAst
             .find(e => e.kind === "FragmentDefinition" && e.name.value === selection2.name.value)
 
-      const {sql:sql2,joins:joins2} = transpileFragmentSelections(selections3, typeName, typeAst, idx, transpileInfo)
-
-      sql = [...sql, ...sql2]
-      joins = [...joins, ...joins2]
+      out = append(out, transpileFragmentSelections(selections3, typeName, typeAst, idx, transpileInfo))
 
     }else{
-      const si = selectionInfo({typeAst,typeName,selection:selection2,idx:`${idx}`}),
-            {sql:sql2,joins:joins2} = transpileSelection({transpileInfo, selectionInfo: si})
-
-      sql = [...sql, ...sql2]
-      joins = [...joins, ...joins2]
+      const si = selectionInfo({typeAst,typeName,selection:selection2,idx:`${idx}`})
+      out = append(out, transpileSelection({transpileInfo, selectionInfo: si}))
     }
 
     if(idx2 < arr2.length - 1)
-      sql = [...sql, ","]
+      out = append(out, {sql: [","]})
   })
 
-  return {
-    sql,
-    joins,
-  }
+  return out
 }
 
 function onlyMatchingFragmentTypsConditions(typeName, queryDefinitionsAst){
@@ -289,9 +283,7 @@ function transpile(transpileInfo){
         {selectionSet} = queryAst,
         typeAst = schemaAst.definitions.find(e => e.kind === "ObjectTypeDefinition" && e.name.value === typeName)
 
-
-  let sql = ["select"],
-      joins = []
+  let out = append({sql: ["select"]})
 
   const selections = selectionSet.selections
     .reduce(appendSelectionForIdField(typeName), [])
@@ -304,41 +296,29 @@ function transpile(transpileInfo){
 
   selections.forEach((selection,idx,arr) => {
     if(selection.kind === "FragmentSpread"){
-      const fragmentAst = queryDefinitionsAst.find(e => e.kind === "FragmentDefinition" && e.name.value === selection.name.value),
-            {sql:sql2,joins:joins2} = transpileFragmentSelections(fragmentAst.selectionSet.selections, typeName, typeAst, idx, transpileInfo)
-
-      sql = [...sql, ...sql2]
-      joins = [...joins, ...joins2]
+      const fragmentAst = queryDefinitionsAst.find(e => e.kind === "FragmentDefinition" && e.name.value === selection.name.value)
+      out = append(out, transpileFragmentSelections(fragmentAst.selectionSet.selections, typeName, typeAst, idx, transpileInfo))
     }else if(selection.kind === "InlineFragment") {
-      const {sql:sql2,joins:joins2} = transpileFragmentSelections(selection.selectionSet.selections, typeName, typeAst, idx, transpileInfo)
-
-      sql = [...sql, ...sql2]
-      joins = [...joins, ...joins2]
+      out = append(out, transpileFragmentSelections(selection.selectionSet.selections, typeName, typeAst, idx, transpileInfo))
     }else if(selection.kind === "Field") {
       const selection2 = selection
 
       if(selection2.name.value === "__typename"){
-        sql = [...sql, `'${typeName}' as "__typename"`]
+        out = append(out, {sql: [`'${typeName}' as "__typename"`]})
       }else{
-
-        const si = selectionInfo({typeAst,typeName,selection:selection2}),
-              {sql:sql2,joins:joins2} = transpileSelection({transpileInfo, selectionInfo: si})
-
-        sql = [...sql, ...sql2]
-        joins = [...joins, ...joins2]
+        const si = selectionInfo({typeAst,typeName,selection:selection2})
+        out = append(out, transpileSelection({transpileInfo, selectionInfo: si}))
       }
     }
 
     if(idx < arr.length - 1)
-      sql = [...sql, ","]
+      out = append(out, {sql: [","]})
   })
 
   if(from)
-    sql = [...sql, `from (`, from, `) as "${table}"`]
+    out = append(out, {sql: [`from (`, from, `) as "${table}"`]})
 
-  sql = [...sql, ...joins]
-
-  return sql
+  return [...out.sql, ...out.joins]
 }
 
 function flatten(arr){

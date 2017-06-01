@@ -150,20 +150,7 @@ export default () => {
           return obj.type
         }
       },
-      Query: {
-        pets(){
-          return [
-            {id: "1", type: "Cat", name: "cat1"},
-            {id: "2", type: "Dog", name: "dog2"},
-          ]
-        },
-        feedItems(){
-          return [
-            {id: 1, type: "Person", name: "joe"},
-            {id: 2, type: "Event", location: "blub"},
-          ]
-        }
-      },
+      Query: {},
       Mutation: {
         sayHello({sqlResolve}, {input:{name}}, _ctx, _info){
           console.info(`hello ${name}`)

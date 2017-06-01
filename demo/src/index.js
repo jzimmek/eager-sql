@@ -13,7 +13,7 @@ import graphqlHTTP from "express-graphql"
 
 import createSchema, {selects} from "./createSchema"
 
-import {createRootResolve,makeResolverAliasAware} from "graphql-pg"
+import {createRootResolve} from "graphql-pg"
 
 process.on("unhandledRejection", (reason, _promise) => console.info("unhandledRejection", reason))
 
@@ -43,44 +43,28 @@ app.use(cookieParser())
 
 const schema = createSchema()
 
-makeResolverAliasAware(schema)
-
 app.use('/graphql', graphqlHTTP(async (req, res, {query,variables}) => {
+  let rootValue
 
-
-  try{
-    const contextValue = {
-      token: "$2a$10$rg3LtrgzYwe85x3466D7aOG9MDz3YKCcnFS08mzfcXDe3Yy1w/PWG"
-    }
-
-    let rootValue = null
-
-    if(query){
-      rootValue = await createRootResolve({
-        db,
-        schema,
-        selects,
-        contextValue,
-        query,
-        variables,
-        dbMerge: true,
-        log: (sql,params) => {
-          res.setHeader('x-sql', encodeURIComponent(sql))
-          res.setHeader('x-sql-params', encodeURIComponent(JSON.stringify(params)))
-        }
-      })
-    }
-
-
-    return {
+  if(query){
+    rootValue = await createRootResolve({
+      db,
       schema,
-      rootValue,
-      context: contextValue,
-      graphiql: false
-    }
+      selects,
+      query,
+      variables,
+      dbMerge: true,
+      log: (sql,params) => {
+        res.setHeader('x-sql', encodeURIComponent(sql))
+        res.setHeader('x-sql-params', encodeURIComponent(JSON.stringify(params)))
+      }
+    })
+  }
 
-  }catch(err){
-    console.error("ERR",err)
+  return {
+    schema,
+    rootValue,
+    graphiql: false
   }
 }))
 

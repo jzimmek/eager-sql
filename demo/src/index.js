@@ -11,7 +11,7 @@ import cookieParser from "cookie-parser"
 
 import graphqlHTTP from "express-graphql"
 
-import createSchema, {selects, schemaStr} from "./createSchema"
+import createSchema, {selects} from "./createSchema"
 
 import {createRootResolve,makeResolverAliasAware} from "graphql-pg"
 
@@ -60,7 +60,6 @@ app.use('/graphql', graphqlHTTP(async (req, res, {query,variables}) => {
         db,
         schema,
         selects,
-        schemaStr,
         contextValue,
         query,
         variables,

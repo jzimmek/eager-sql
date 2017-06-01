@@ -1,7 +1,7 @@
 import {makeExecutableSchema} from 'graphql-tools'
 import {makeResolverAliasAware,sql,cursor} from "graphql-pg"
 
-export const schemaStr = `
+const schemaStr = `
   enum PersonStatus {
     GOOD
     BAD

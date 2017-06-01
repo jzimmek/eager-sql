@@ -3,6 +3,7 @@ import gql from "graphql-tag"
 import {GraphQLObjectType,GraphQLList} from "graphql"
 import {getVariableValues,getArgumentValues} from "graphql/execution/values"
 import {isCompositeType,isLeafType,getNullableType,getNamedType} from "graphql/type/definition"
+import {printSchema} from "graphql/utilities/schemaPrinter"
 
 import merge, {SPLIT} from "./merge"
 
@@ -352,8 +353,7 @@ function toExecutableSqlAndParams(sqlArr){
   return {sql,params}
 }
 
-function sqlResolve({db, schema, selects, schemaStr, queryStr, contextValue={}, variables={}, log, dbMerge}){
-
+function sqlResolve({db, schema, selects, queryStr, contextValue={}, variables={}, log, dbMerge}){
   return (typeName) => {
     const info = gql`${queryStr}`
 
@@ -361,7 +361,7 @@ function sqlResolve({db, schema, selects, schemaStr, queryStr, contextValue={}, 
       selects,
       queryAst: info.definitions[0],
       queryDefinitionsAst: info.definitions,
-      schemaAst: gql`${schemaStr}`,
+      schemaAst: gql`${printSchema(schema)}`,
       schema,
       typeName,
       contextValue,
@@ -429,10 +429,10 @@ export function makeResolverAliasAware(schema){
   })
 }
 
-export function createRootResolve({db, schema, selects, schemaStr, contextValue, query, variables, log, dbMerge}){
+export function createRootResolve({db, schema, selects, contextValue, query, variables, log, dbMerge}){
   const clientAst = gql`${query}`,
         {definitions:[{operation}]} = clientAst,
-        resolve = sqlResolve({db, schema, selects, schemaStr, queryStr: clientAst, contextValue, variables, log, dbMerge})
+        resolve = sqlResolve({db, schema, selects, queryStr: clientAst, contextValue, variables, log, dbMerge})
 
   return (operation === "mutation") ? Promise.resolve(({sqlResolve: () => resolve("Mutation")})) : resolve("Query")
 }

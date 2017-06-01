@@ -43,7 +43,7 @@ export async function runQuery(db, opts, {query,variables={}}){
 
     gql.resetCaches()
 
-    const rootValue = await createRootResolve({db, schema, selects, schemaStr: graphqlSchema, contextValue, query, variables, dbMerge: true})
+    const rootValue = await createRootResolve({db, schema, selects, contextValue, query, variables, dbMerge: true})
 
     const res = await graphql(schema, query, rootValue, contextValue, variables)
 

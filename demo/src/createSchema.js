@@ -87,7 +87,7 @@ export const selects = {
   Person: {
     namel: (_args, _ctx) => [`name`],
     friends(_args, {table}){
-      return [`select p.* from friends f join people p on p.id = f.friend_id where f.person_id = ${table}.id`]
+      return sql`select p.* from friends f join people p on p.id = f.friend_id where f.person_id = ${sql.raw(table)}.id`
     }
   },
   Query: {
@@ -109,29 +109,29 @@ export const selects = {
     feedItems(_args, _ctx){
       return {
         types: {
-          "Person": ["select * from people"],
-          "Event": ["select * from events"],
+          "Person": sql`select * from people`,
+          "Event": sql`select * from events`,
         }
       }
     },
     people(_args, _ctx){
-      return ["select * from people"]
+      return sql`select * from people`
     },
     events(_args, _ctx){
-      return ["select * from events"]
+      return sql`select * from events`
     },
     pets(){
       return {
         types: {
-          Cat: [`select 1 as id, 'cat1' as name`],
-          Dog: [`select 2 as id, 'dog2' as name`],
+          Cat: sql`select 1 as id, 'cat1' as name`,
+          Dog: sql`select 2 as id, 'dog2' as name`,
         }
       }
     }
   },
   Mutation: {
     sayHello(_args, _ctx){
-      return ["select * from people"]
+      return sql`select * from people`
     }
   },
 }

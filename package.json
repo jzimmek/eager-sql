@@ -42,5 +42,8 @@
   "peerDependencies": {
     "graphql": "0.10.x",
     "graphql-tag": "2.2.x"
+  },
+  "dependencies": {
+    "lodash": "^4.17.4"
   }
 }

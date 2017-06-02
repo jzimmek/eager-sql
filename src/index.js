@@ -4,13 +4,10 @@ import {GraphQLObjectType,GraphQLList} from "graphql"
 import {getVariableValues,getArgumentValues} from "graphql/execution/values"
 import {isCompositeType,isLeafType,getNullableType,getNamedType} from "graphql/type/definition"
 import {printSchema} from "graphql/utilities/schemaPrinter"
+import snakeCase from "lodash/fp/snakeCase"
 
 import merge, {SPLIT} from "./merge"
 import toExecutableSqlAndParams from "./toExecutableSqlAndParams"
-
-function snakeCase(str){
-  return [...str].reduce((memo, c) => memo.concat(c === c.toUpperCase() ? `_${c.toLowerCase()}` : c), []).join("")
-}
 
 function selectionInfo({typeAst, typeName, selection, idx=""}){
   const fieldDefinitionAst = typeAst.fields.find(e => e.name.value === selection.name.value)

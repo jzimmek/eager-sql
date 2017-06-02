@@ -1678,6 +1678,12 @@ graphql-pg@./graphql-pg-1496393312.tgz:
   version "1.0.17"
   resolved "./graphql-pg-1496393312.tgz#712edc98c08c66704c4c397c3abe6f9e8fae08f8"
 
+graphql-pg@./graphql-pg-1496404078.tgz:
+  version "1.0.17"
+  resolved "./graphql-pg-1496404078.tgz#b8be44e9b6735c950233fa65a5af0b252b97eb0b"
+  dependencies:
+    lodash "^4.17.4"
+
 graphql-tag@^2.2.0:
   version "2.2.0"
   resolved "https://registry.yarnpkg.com/graphql-tag/-/graphql-tag-2.2.0.tgz#9ea24f35a19aab1be1e55675928344d84d852905"
@@ -2061,7 +2067,7 @@ levn@^0.3.0, levn@~0.3.0:
     prelude-ls "~1.1.2"
     type-check "~0.3.2"
 
-lodash@^4.0.0, lodash@^4.2.0, lodash@^4.3.0:
+lodash@^4.0.0, lodash@^4.17.4, lodash@^4.2.0, lodash@^4.3.0:
   version "4.17.4"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.4.tgz#78203a4d1c328ae1d86dca6460e369b57f4055ae"
 

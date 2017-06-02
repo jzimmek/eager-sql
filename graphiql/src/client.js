@@ -48,7 +48,7 @@ class DemoGraghiQl extends Component {
     let {sql,sqlParams} = this.state
     return <GraphiQL fetcher={this.graphQLFetcher} defaultQuery={defaultQuery}>
       <GraphiQL.Footer>
-        <textarea value={sql ? (sqlFormatter.format(sql) + "\n\n" + sqlParams) : ""} readOnly/>
+        <textarea value={sql ? ("sql:\n----------------\n\n" + sqlFormatter.format(sql).replace(/\$ ([0-9]+)/g, "$$$1") + "\n\nparams:\n----------------\n\n" + sqlParams) : ""} readOnly/>
       </GraphiQL.Footer>
     </GraphiQL>
   }

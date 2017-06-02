@@ -31,7 +31,7 @@ $x$
 
 
 
-  var SPLIT = "$$";
+  var SPLIT = "@@";
 
   var merge = function merge() {
     var a = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};

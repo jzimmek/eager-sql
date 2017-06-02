@@ -2,7 +2,7 @@ import pg from "pg"
 pg.types.setTypeParser(20, 'text', parseInt)
 
 import path from "path"
-import knex from "knex"
+import url from "url"
 import express from "express"
 
 import compression from "compression"
@@ -17,20 +17,16 @@ import {createRootResolve} from "graphql-pg"
 
 process.on("unhandledRejection", (reason, _promise) => console.info("unhandledRejection", reason))
 
-const isDev = process.env.NODE_ENV === "development"
-
-if(isDev)
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
-
-const db = knex({
-  debug: true,
-  client: "pg",
-  connection: process.env.DATABASE_URL,
-  pool: {
-    min: 1,
-    max: 1
-  }
-})
+const params = url.parse(process.env.DATABASE_URL),
+      auth = params.auth.split(':'),
+      pool = new pg.Pool({
+        user: auth[0],
+        password: auth[1],
+        host: params.hostname,
+        port: params.port,
+        database: params.pathname.split('/')[1],
+        ssl: false
+      })
 
 const app = express()
 
@@ -48,7 +44,7 @@ app.use('/graphql', graphqlHTTP(async (req, res, {query,variables}) => {
 
   if(query){
     rootValue = await createRootResolve({
-      db,
+      execQuery: (sql,params) => pool.query(sql,params),
       schema,
       selects,
       query,

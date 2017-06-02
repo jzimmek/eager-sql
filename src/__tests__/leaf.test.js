@@ -1,4 +1,5 @@
 import {connectDb,runQuery} from "./helper"
+import {sql} from "../index"
 
 const db = connectDb()
 
@@ -30,12 +31,12 @@ describe("leaf", () => {
     selects: {
       Person: {
         avatarUrl({size}){
-          return [`concat('avatar-',?::text)`, size]
+          return sql`concat('avatar-',cast(${size} as text))`
         },
       },
       Query: {
         people(){
-          return [`select * from test_people`]
+          return sql`select * from test_people`
         }
       }
     },

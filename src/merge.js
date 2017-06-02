@@ -1,4 +1,4 @@
-export const SPLIT = "$$"
+export const SPLIT = "@@"
 
 const merge = (a={}, b={}) => {
 

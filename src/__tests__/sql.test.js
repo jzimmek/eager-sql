@@ -6,23 +6,29 @@ describe("sql helper", () => {
   })
 
   test("with placeholder", () => {
-    expect(sql`select * from users where id = ${1}`).toEqual([`select * from users where id = ?`, 1])
-    expect(sql`select * from users where id = ${1} and id != ${2}`).toEqual([`select * from users where id = ? and id != ?`, 1, 2])
+    expect(sql`select * from users where id = ${1}`).toEqual([`select * from users where id = `, {__param: 1}])
+    expect(sql`select * from users where name = ${"joe"}`).toEqual([`select * from users where name = `, {__param: "joe"}])
+    expect(sql`select * from users where id = ${1} and id != ${2}`).toEqual([`select * from users where id = `, {__param: 1}, ` and id != `, {__param: 2}])
   })
 
   test("nested raw", () => {
-    expect(sql`select * from users where ${sql.raw("id")} > 0`).toEqual([`select * from users where id > 0`])
+    const nested = sql.raw("id")
+    expect(sql`select * from users where ${nested} > 0`).toEqual([`select * from users where `, "id", ` > 0`])
   })
 
   test("nested sql as raw", () => {
-    expect(sql`select * from users where (${sql.raw(sql`select true`)})`).toEqual([`select * from users where (select true)`])
+    const nested = sql.raw(sql`select true`)
+    expect(sql`select * from users where (${nested})`).toEqual([`select * from users where (`, "select true",`)`])
   })
 
   test("nested sql as raw with placeholder", () => {
-    expect(sql`select * from users where (${sql.raw(sql`select ${true}`)})`).toEqual([`select * from users where (select ?)`, true])
+    const nested = sql.raw(sql`(select ${true})`)
+    expect(sql`select * from users where (${nested})`).toEqual([`select * from users where (`, `(select `, {__param: true}, ')' ,`)`])
   })
 
   test("outer placeholder and nested sql as raw with placeholder", () => {
-    expect(sql`select * from users where id = ${1} and (${sql.raw(sql`select ${true}`)})`).toEqual([`select * from users where id = ? and (select ?)`, 1, true])
+    const nested = sql.raw(sql`select ${true}`)
+    expect(sql`select * from users where id = ${1} and (${nested})`).toEqual([`select * from users where id = `, {__param: 1},` and (`, `select `, {__param: true},`)`])
   })
+
 })

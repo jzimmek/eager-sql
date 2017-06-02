@@ -6,6 +6,7 @@ import {isCompositeType,isLeafType,getNullableType,getNamedType} from "graphql/t
 import {printSchema} from "graphql/utilities/schemaPrinter"
 
 import merge, {SPLIT} from "./merge"
+import toExecutableSqlAndParams from "./toExecutableSqlAndParams"
 
 function snakeCase(str){
   return [...str].reduce((memo, c) => memo.concat(c === c.toUpperCase() ? `_${c.toLowerCase()}` : c), []).join("")
@@ -42,14 +43,13 @@ function transpileScalar({transpileInfo: ti, selectionInfo: si}){
     contextValue
   ) : [`"${ti.table}"."${si.columnName}"`]
 
-  return {
+  return append({
     sql: [
       sqlParts[0],
-      ...sqlParts.slice(1).map(e => ({__param: e})),
+      ...sqlParts.slice(1),
       ` as "${si.columnNameAs}"`
     ],
-    joins: [],
-  }
+  })
 }
 
 function transpileInJsonFunc({transpileInfo: ti, selectionInfo: si}, inner){
@@ -60,26 +60,25 @@ function transpileInJsonFunc({transpileInfo: ti, selectionInfo: si}, inner){
         json_func = isObject ? "to_json" : (isList ? "json_agg" : new Error("neither list nor object type"))
 
   if(typeName === "Query" || typeName === "Mutation"){
-    return {
+    return append({
       sql: [
         `(select ${json_func}(y) from (`,
         inner,
         `) as y) as "${si.columnNameAs}"`,
       ],
-      joins: [],
-    }
+    })
   } else {
-    return {
+    return append({
       joins: [
         `left join lateral (select ${json_func}(x) from (`,
         inner,
-        `) as x) as "${si.columnNameAs}" on true`
+        `) as x) as "${si.columnNameAs}" on true\n`
       ],
       sql: [
         ...(isObject ? [`"${si.columnNameAs}".${json_func} as "${si.columnNameAs}"`] : []),
         ...(isList ? [`coalesce("${si.columnNameAs}".${json_func}, '[]') as "${si.columnNameAs}"`] : []),
       ]
-    }
+    })
   }
 }
 
@@ -105,7 +104,7 @@ function transpileObjectAndList({transpileInfo: ti, selectionInfo: si}){
       table: si.columnNameAs,
       from: [
         sqlParts[0],
-        ...sqlParts.slice(1).map(e => ({__param: e}))
+        ...sqlParts.slice(1)
       ]
     })
 
@@ -118,7 +117,7 @@ function transpileObjectAndList({transpileInfo: ti, selectionInfo: si}){
         sql: [
           `(select x.* from (`,
           sqlParts.sql[0],
-          ...sqlParts.sql.slice(1).map(e => ({__param: e})),
+          ...sqlParts.sql.slice(1),
           `) x) as "${si.columnNameAs}"`,
         ]
       })
@@ -138,7 +137,7 @@ function transpileObjectAndList({transpileInfo: ti, selectionInfo: si}){
                 table: si.columnNameAs,
                 from: [
                   sqlParts2[0],
-                  ...sqlParts2.slice(1).map(e => ({__param: e}))
+                  ...sqlParts2.slice(1)
                 ]
               })
 
@@ -284,7 +283,7 @@ function transpile(transpileInfo){
         {selectionSet} = queryAst,
         typeAst = schemaAst.definitions.find(e => e.kind === "ObjectTypeDefinition" && e.name.value === typeName)
 
-  let out = append({sql: ["select"]})
+  let out = append({sql: ["select "]})
 
   const selections = selectionSet.selections
     .reduce(appendSelectionForIdField(typeName), [])
@@ -322,19 +321,7 @@ function transpile(transpileInfo){
   return [...out.sql, ...out.joins]
 }
 
-function flatten(arr){
-  return arr.reduce((memo, e) => Array.isArray(e) ? [...memo, ...flatten(e)] : [...memo, e], [])
-}
-
-function toExecutableSqlAndParams(sqlArr){
-  const sqlArrFlatten = flatten(sqlArr),
-        sql = sqlArrFlatten.filter(e => typeof(e) === "string").join(" "),
-        params = sqlArrFlatten.filter(e => typeof(e) !== "string").map(e => e.__param)
-
-  return {sql,params}
-}
-
-function sqlResolve({db, schema, selects, queryStr, contextValue={}, variables={}, log, dbMerge}){
+function sqlResolve({execQuery, schema, selects, queryStr, contextValue={}, variables={}, log, dbMerge}){
   return (typeName) => {
     const info = gql`${queryStr}`
 
@@ -363,8 +350,8 @@ function sqlResolve({db, schema, selects, queryStr, contextValue={}, variables={
     // console.info(">>>>>>>>> sql >>>>>>>>>\n", sql)
     // console.info(">>>>>>>>> params >>>>>>\n", params)
 
-    return db.raw(sql, params).then(({rows}) => {
-      const [row] = rows,
+    return execQuery(sql, params).then((result) => {
+      const [row] = result.rows,
             mutationResultKey = info.definitions[0].selectionSet.selections[0].name.value,
             res = (typeName === "Mutation") ? (dbMerge ? {to_json: row.to_json[mutationResultKey]} : row[mutationResultKey]) : row
 
@@ -410,47 +397,35 @@ export function makeResolverAliasAware(schema){
   })
 }
 
-export function createRootResolve({db, schema, selects, contextValue={}, query, variables, log, dbMerge}){
+export function createRootResolve({execQuery, schema, selects, contextValue={}, query, variables, log, dbMerge}){
   const clientAst = gql`${query}`,
         {definitions:[{operation}]} = clientAst,
-        resolve = sqlResolve({db, schema, selects, queryStr: clientAst, contextValue, variables, log, dbMerge})
+        resolve = sqlResolve({execQuery, schema, selects, queryStr: clientAst, contextValue, variables, log, dbMerge})
 
   return (operation === "mutation") ? Promise.resolve(({sqlResolve: () => resolve("Mutation")})) : resolve("Query")
 }
 
 export function sql(...args){
-  let [parts,...vars] = args,
-      retVars = [],
-      s = parts.reduce((memo, part, idx) => {
-        let nextMemo = memo + part
+  let [parts,...vars] = args
 
-        if(idx < vars.length){
-          let varValue = vars[idx]
+  return parts.reduce((memo, part, idx) => {
+    if(part.length === 0)
+      return memo
 
-          if(varValue === undefined)
-            varValue = null
+    let nextMemo = memo.concat(part)
 
-          if(varValue && varValue.__raw){
-            let varRes = varValue.__raw
+    if(idx < vars.length){
+      let varValue = vars[idx]
 
-            if(Array.isArray(varRes)){
-              let [s2,...vars2] = varRes
-              nextMemo += s2
-              retVars = [...retVars, ...vars2]
-            }else{
-              nextMemo += varRes
-            }
-          }else{
-            nextMemo += "?"
-            retVars = [...retVars, varValue]
-          }
+      if(varValue && varValue.__raw){
+        nextMemo = nextMemo.concat(varValue.__raw)
+      }else{
+        nextMemo = nextMemo.concat({__param: varValue})
+      }
+    }
 
-        }
-
-        return nextMemo
-      }, "")
-
-  return [s, ...retVars]
+    return nextMemo
+  }, [])
 }
 
 sql.raw = (val) => ({__raw: val})

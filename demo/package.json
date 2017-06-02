@@ -25,10 +25,9 @@
     "express": "^4.15.2",
     "express-graphql": "^0.6.6",
     "graphql": "^0.10.1",
-    "graphql-pg": "./graphql-pg-1496240940.tgz",
+    "graphql-pg": "./graphql-pg-1496393312.tgz",
     "graphql-tag": "^2.2.0",
     "graphql-tools": "^0.11.0",
-    "knex": "^0.13.0",
     "pg": "^6.1.4"
   }
 }

@@ -33,13 +33,11 @@
     "eslint-plugin-jest": "^20.0.3",
     "eslint-plugin-react": "^7.0.0",
     "flow-bin": "^0.46.0",
+    "graphql": "^0.10.0",
     "graphql-tag": "^2.2.0",
     "graphql-tools": "^0.11.0",
     "jest": "^20.0.1",
-    "knex": "^0.13.0",
-    "pg": "^6.1.4",
-    "graphql": "^0.10.0",
-    "graphql-tag": "^2.2.0"
+    "pg": "^6.1.4"
   },
   "peerDependencies": {
     "graphql": "0.10.x",

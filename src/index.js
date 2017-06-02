@@ -417,7 +417,7 @@ export function sql(...args){
       if(varValue && varValue.__raw){
         nextMemo = nextMemo.concat(varValue.__raw)
       }else{
-        nextMemo = nextMemo.concat({__param: varValue})
+        nextMemo = nextMemo.concat({__param: varValue === undefined ? null : varValue})
       }
     }
 

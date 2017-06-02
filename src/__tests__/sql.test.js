@@ -11,6 +11,10 @@ describe("sql helper", () => {
     expect(sql`select * from users where id = ${1} and id != ${2}`).toEqual([`select * from users where id = `, {__param: 1}, ` and id != `, {__param: 2}])
   })
 
+  test("with placeholder; treat undefined as null", () => {
+    expect(sql`select * from users where id = ${undefined}`).toEqual([`select * from users where id = `, {__param: null}])
+  })
+
   test("nested raw", () => {
     const nested = sql.raw("id")
     expect(sql`select * from users where ${nested} > 0`).toEqual([`select * from users where `, "id", ` > 0`])

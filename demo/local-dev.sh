@@ -1,14 +1,20 @@
 #!/bin/bash
 
+set -x
 set -e
+
+function finish {
+  [ -d ../node_modules/graphql-bak ] && mv ../node_modules/graphql-bak ../node_modules/graphql
+}
+
+trap finish EXIT
 
 pushd ..
 yarn run build
-yarn pack
 popd
 
-PACKAGE_FILE=graphql-pg-`date +%s`.tgz
-mv ../graphql-pg-v* $PACKAGE_FILE
+[ -d ../node_modules/graphql ] && mv ../node_modules/graphql ../node_modules/graphql-bak
 
-yarn add --force ./$PACKAGE_FILE
+[ -L ./node_modules/graphql-pg ] || yarn link graphql-pg
+
 yarn run start

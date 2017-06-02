@@ -49,7 +49,7 @@ app.use('/graphql', graphqlHTTP(async (req, res, {query,variables}) => {
       selects,
       query,
       variables,
-      dbMerge: true,
+      dbMerge: process.env.GRAPHQL_PG_DB_MERGE === "true",
       log: (sql,params) => {
         res.setHeader('x-sql', encodeURIComponent(sql))
         res.setHeader('x-sql-params', encodeURIComponent(JSON.stringify(params)))

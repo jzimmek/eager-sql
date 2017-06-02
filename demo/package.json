@@ -5,7 +5,7 @@
   "main": "./src/index.js",
   "scripts": {
     "build": "/usr/bin/true",
-    "start": "NODE_PATH=`pwd`/node_modules DATABASE_URL=postgres://`whoami`:@localhost:5432/`whoami` PORT=3000 node_modules/.bin/babel-node src/index.js",
+    "start": "NODE_PATH=`pwd`/node_modules GRAPHQL_PG_DB_MERGE=true DATABASE_URL=postgres://`whoami`:@localhost:5432/`whoami` PORT=3000 node_modules/.bin/babel-node src/index.js",
     "schema": "cat ./schema.sql | psql -U `whoami` -h localhost -d `whoami`"
   },
   "author": "Jan Zimmek",

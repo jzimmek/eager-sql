@@ -2,7 +2,7 @@ import {connectDb,runQuery} from "./helper"
 
 const db = connectDb()
 
-describe("union of interface", () => {
+describe("union and interface", () => {
   const opts = {
     prefix: "union",
     dbClean: `

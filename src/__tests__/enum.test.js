@@ -3,7 +3,7 @@ import {sql} from "../index"
 
 const db = connectDb()
 
-describe("leaf", () => {
+describe("enum", () => {
 
   const opts = {
     dbClean: `

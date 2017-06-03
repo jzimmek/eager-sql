@@ -2,7 +2,7 @@ import {Buffer} from "buffer"
 import gql from "graphql-tag"
 import {GraphQLObjectType,GraphQLList} from "graphql"
 import {getVariableValues,getArgumentValues} from "graphql/execution/values"
-import {isCompositeType,isLeafType,getNullableType,getNamedType} from "graphql/type/definition"
+import {isCompositeType,isAbstractType,isLeafType,getNullableType,getNamedType} from "graphql/type/definition"
 import {printSchema} from "graphql/utilities/schemaPrinter"
 import snakeCase from "lodash/fp/snakeCase"
 
@@ -262,13 +262,19 @@ function transpileFragmentSelections(selections, typeName, typeAst, idx, transpi
   return out
 }
 
-function onlyMatchingFragmentTypsConditions(typeName, queryDefinitionsAst){
+function onlyMatchingFragmentTypsConditions(schema, typeName, queryDefinitionsAst){
   return (selection) => {
-    if(selection.kind === "InlineFragment"){
-      return selection.typeCondition.name.value === typeName
-    }else if(selection.kind === "FragmentSpread"){
-      const fragmentAst = queryDefinitionsAst.find(e => e.kind === "FragmentDefinition" && e.name.value === selection.name.value)
-      return fragmentAst.typeCondition.name.value === typeName
+    if(selection.kind === "InlineFragment" || selection.kind === "FragmentSpread"){
+      const {typeCondition} = selection.kind === "FragmentSpread"
+        ? queryDefinitionsAst.find(e => e.kind === "FragmentDefinition" && e.name.value === selection.name.value)
+        : selection
+
+      const maybeAbstractType = schema.getType(typeCondition.name.value),
+            possibleType = schema.getType(typeName)
+
+      return isAbstractType(maybeAbstractType)
+        ? schema.isPossibleType(maybeAbstractType, possibleType)
+        : maybeAbstractType === possibleType
     }
 
     return true
@@ -285,7 +291,7 @@ function transpile(transpileInfo){
   const selections = selectionSet.selections
     .reduce(appendSelectionForIdField(typeName), [])
     .filter(onlyNonSchemaSelections())
-    .filter(onlyMatchingFragmentTypsConditions(typeName, queryDefinitionsAst))
+    .filter(onlyMatchingFragmentTypsConditions(schema, typeName, queryDefinitionsAst))
     .filter(onlySelectionsForSqlFields(selects, typeAst, typeName, schema))
 
   if(!selections.length)

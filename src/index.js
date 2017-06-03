@@ -262,7 +262,7 @@ function transpileFragmentSelections(selections, typeName, typeAst, idx, transpi
   return out
 }
 
-function onlyMatchingFragmentTypsConditions(schema, typeName, queryDefinitionsAst){
+function onlyMatchingFragmentTypeCondition(schema, typeName, queryDefinitionsAst){
   return (selection) => {
     if(selection.kind === "InlineFragment" || selection.kind === "FragmentSpread"){
       const {typeCondition} = selection.kind === "FragmentSpread"
@@ -291,7 +291,7 @@ function transpile(transpileInfo){
   const selections = selectionSet.selections
     .reduce(appendSelectionForIdField(typeName), [])
     .filter(onlyNonSchemaSelections())
-    .filter(onlyMatchingFragmentTypsConditions(schema, typeName, queryDefinitionsAst))
+    .filter(onlyMatchingFragmentTypeCondition(schema, typeName, queryDefinitionsAst))
     .filter(onlySelectionsForSqlFields(selects, typeAst, typeName, schema))
 
   if(!selections.length)

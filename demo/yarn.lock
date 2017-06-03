@@ -1670,9 +1670,9 @@ graceful-fs@^4.1.2, graceful-fs@^4.1.4:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/graceful-readlink/-/graceful-readlink-1.0.1.tgz#4cafad76bc62f02fa039b2f94e9a3dd3a391a725"
 
-graphql-pg@^1.0.18:
-  version "1.0.18"
-  resolved "https://registry.yarnpkg.com/graphql-pg/-/graphql-pg-1.0.18.tgz#fa5a248261ad228bbb49af301971720ce580d4ba"
+graphql-pg@^1.0.19:
+  version "1.0.19"
+  resolved "https://registry.yarnpkg.com/graphql-pg/-/graphql-pg-1.0.19.tgz#2796b0312e24df1d3d1423fc180bc82419b7daa3"
   dependencies:
     lodash "^4.17.4"
 

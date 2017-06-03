@@ -2,56 +2,53 @@ import {makeExecutableSchema} from 'graphql-tools'
 import {makeResolverAliasAware,sql,cursor} from "graphql-pg"
 
 const schemaStr = `
-  enum PersonStatus {
-    GOOD
-    BAD
-  }
-
   type Person {
     id: ID!
-    namel: String!
-    status: PersonStatus
-    friends: [Person]!
+    name: String!
+    species: Species!
   }
 
-  type Event {
+  interface Character {
     id: ID!
-    location: String!
+    name: String!
+    species: Species!
   }
 
-  union FeedItem = Person | Event
+  type AliveCharacter implements Character {
+    id: ID!
+    name: String!
+    hairColor: String!
+    children: [AliveCharacter]!
+    species: Species!
+  }
 
-  interface Pet {
+  type DroidCharacter implements Character {
+    id: ID!
+    name: String!
+    mass: String!
+    species: Species!
+  }
+
+  union Actor = AliveCharacter | DroidCharacter
+
+  type Species {
+    id: ID!
     name: String!
   }
 
-  interface PetWithId {
-    id: ID!
-  }
-
-  type Cat implements Pet {
+  type Film {
     id: ID!
     name: String!
   }
 
-  type Dog implements Pet, PetWithId {
-    id: ID!
-    name: String!
-  }
-
-  type Todo {
-    id: ID!
-    name: String!
-  }
-
-  type TodoConnection {
-    edges: [TodoEdge]
+  type PersonConnection {
+    edges: [PersonEdge]
     pageInfo: PageInfo
   }
 
-  type TodoEdge {
+  type PersonEdge {
     cursor: String!
-    node: Todo
+    node: Person
   }
 
   type PageInfo {
@@ -59,79 +56,82 @@ const schemaStr = `
     hasPreviousPage: Boolean!
   }
 
-  input TodoConnectionInput {
-    first: Int
-    last: Int
-    after: String
-    before: String
-  }
-
   type Query {
+    actors: [Actor]!
+    characters: [Character]!
     people: [Person]!
-    events: [Event]
-    feedItems: [FeedItem]!
-    pets: [Pet]!
-    todos(input: TodoConnectionInput): TodoConnection!
-  }
-
-  input SayHelloInput {
-    name: String!
-  }
-
-  type Mutation {
-    sayHello(input: SayHelloInput!): [Person]!
+    peopleConnection(first: Int, last: Int, after: String, before: String): PersonConnection!
+    species: [Species]!
+    films: [Film]!
   }
 `
 
+
 export const selects = {
   Person: {
-    namel: (_args, _ctx) => [`name`],
-    friends(_args, {table}){
-      return sql`select p.* from friends f join people p on p.id = f.friend_id where f.person_id = ${sql.raw(table)}.id`
+    species(_args, {table}){
+      return sql`select * from species where id = ${sql.raw(table)}.species_id`
     }
   },
-  Query: {
-    todos(args, _ctx){
-      return cursor(args.input, ([before], [after]) => {
-        return sql`
-          select
-            t.*,
-            row_number() over (order by t.id asc) as "$row_number",
-            json_build_array(t.id) as "$cursor"
-          from todos t
-          where
-            coalesce(t.id > cast(${after} as integer), true)
-            and coalesce(t.id < cast(${before} as integer), true)
-        `
-      })
-
+  DroidCharacter: {
+    species(_args, {table}){
+      return sql`select * from species where id = ${sql.raw(table)}.species_id`
     },
-    feedItems(_args, _ctx){
+  },
+  AliveCharacter: {
+    species(_args, {table}){
+      return sql`select * from species where id = ${sql.raw(table)}.species_id`
+    },
+    children(_args, {table}){
+      return sql`
+        select
+          p.*
+        from people_children pc
+        join people p on p.id = pc.child_id
+        where
+          pc.parent_id = ${sql.raw(table)}.id
+      `
+    },
+  },
+  Query: {
+    actors(){
       return {
         types: {
-          "Person": sql`select * from people`,
-          "Event": sql`select * from events`,
+          AliveCharacter: sql`select * from people where species_id in (1,2)`,
+          DroidCharacter: sql`select * from people where species_id = 3`,
+        }
+      }
+    },
+    characters(){
+      return {
+        types: {
+          AliveCharacter: sql`select * from people where species_id in (1,2)`,
+          DroidCharacter: sql`select * from people where species_id = 3`,
         }
       }
     },
     people(_args, _ctx){
       return sql`select * from people`
     },
-    events(_args, _ctx){
-      return sql`select * from events`
+    species(_args, _ctx){
+      return sql`select * from species`
     },
-    pets(){
-      return {
-        types: {
-          Cat: sql`select 1 as id, 'cat1' as name`,
-          Dog: sql`select 2 as id, 'dog2' as name`,
-        }
-      }
-    }
-  },
-  Mutation: {
-    sayHello(_args, _ctx){
-      return sql`select * from people`
+    films(_args, _ctx){
+      return sql`select * from films`
+    },
+    peopleConnection(args,_ctx){
+      return cursor(args, ([before], [after]) => {
+        return sql`
+          select
+            t.*,
+            row_number() over (order by t.id asc) as "$row_number",
+            json_build_array(t.id) as "$cursor"
+          from people t
+          where
+            coalesce(t.id > cast(${after} as integer), true)
+            and coalesce(t.id < cast(${before} as integer), true)
+        `
+      })
     }
   },
 }
@@ -140,23 +140,13 @@ export default () => {
   const schema = makeExecutableSchema({
     typeDefs: [schemaStr],
     resolvers: {
-      FeedItem: {
-        __resolveType(obj){
-          return obj.type
-        }
-      },
-      Pet: {
-        __resolveType(obj){
-          return obj.type
-        }
-      },
       Query: {},
-      Mutation: {
-        sayHello({sqlResolve}, {input:{name}}, _ctx, _info){
-          console.info(`hello ${name}`)
-          return sqlResolve()
-        }
-      }
+      Actor: {
+        __resolveType: (obj) => obj.type
+      },
+      Character: {
+        __resolveType: (obj) => obj.type
+      },
     },
   })
 

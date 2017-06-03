@@ -24,7 +24,6 @@ const params = url.parse(process.env.DATABASE_URL),
       app = express(),
       schema = createSchema()
 
-
 app.use(express.static(path.resolve(__dirname, "..", "node_modules", "graphql-pg", "graphiql", "build")))
 app.use(compression())
 app.use(bodyParser.json({limit: "5000kb"}))

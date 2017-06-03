@@ -31,23 +31,28 @@ app.use(bodyParser.urlencoded({extended: true}))
 app.use(cookieParser())
 
 app.use('/graphql', graphqlHTTP(async (req, res, {query,variables}) => {
-  const rootValue = query ? await createRootResolve({
-    execQuery: (sql,params) => pool.query(sql,params),
-    schema,
-    selects,
-    query,
-    variables,
-    dbMerge: process.env.GRAPHQL_PG_DB_MERGE === "true",
-    log: (sql,params) => {
-      res.setHeader('x-sql', encodeURIComponent(sql))
-      res.setHeader('x-sql-params', encodeURIComponent(JSON.stringify(params)))
-    }
-  }) : {}
+  try{
+    const rootValue = query ? await createRootResolve({
+      execQuery: (sql,params) => pool.query(sql,params),
+      schema,
+      selects,
+      query,
+      variables,
+      dbMerge: process.env.GRAPHQL_PG_DB_MERGE === "true",
+      log: (sql,params) => {
+        res.setHeader('x-sql', encodeURIComponent(sql))
+        res.setHeader('x-sql-params', encodeURIComponent(JSON.stringify(params)))
+      }
+    }) : {}
 
-  return {
-    schema,
-    rootValue,
-    graphiql: false
+    return {
+      schema,
+      rootValue,
+      graphiql: false
+    }
+  }catch(err){
+    console.info("ERR", err)
+    throw err
   }
 }))
 

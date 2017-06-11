@@ -1,6 +1,6 @@
 {
   "name": "graphql-pg",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "author": "Jan Zimmek",
   "license": "MIT",
   "main": "./lib/index.js",

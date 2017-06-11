@@ -420,7 +420,7 @@ export function sql(...args){
     if(idx < vars.length){
       let varValue = vars[idx]
 
-      if(varValue && varValue.__raw){
+      if(varValue && varValue.hasOwnProperty("__raw")){
         nextMemo = nextMemo.concat(varValue.__raw)
       }else{
         nextMemo = nextMemo.concat({__param: varValue === undefined ? null : varValue})

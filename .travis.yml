@@ -7,6 +7,8 @@ dist: trusty
 sudo: required
 addons:
   postgresql: "9.6"
+before_install:
+  - sudo apt-get install postgresql-9.6-plv8
 env:
   - DATABASE_URL=postgres://postgres:@localhost:5432/graphql_pg_test
 script:
